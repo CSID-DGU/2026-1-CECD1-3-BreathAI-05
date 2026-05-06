@@ -2,10 +2,7 @@ package com.breathAI.ttobagi_server.domain.faq.entity;
 
 import com.breathAI.ttobagi_server.domain.dashboard.entity.AnalysisJob;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +18,8 @@ import java.time.LocalDateTime;
     }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class FaqSnapshot {
     
     @Id
@@ -64,6 +63,11 @@ public class FaqSnapshot {
         this.ciQuestion = ciQuestion;
         this.ciAnswer0 = ciAnswer0;
         this.qaCnt = qaCnt;
+    }
+
+    public void updateContent(String question, String answer) {
+        this.ciQuestion = question;
+        this.ciAnswer0 = answer;
     }
 
 }
