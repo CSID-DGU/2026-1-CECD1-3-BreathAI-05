@@ -15,7 +15,7 @@ public class PasswordResetConfirmRequest {
     @NotBlank(message = "새 비밀번호는 필수 입력 값입니다.")
     @Pattern(
         regexp = "^(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[a-z\\d@$!%*?&]{6,20}$",
-        message = "비밀번호 형식이 올바르지 않습습니다."
+        message = "비밀번호 형식이 올바르지 않습니다."
     )
     private String newPassword;
     
