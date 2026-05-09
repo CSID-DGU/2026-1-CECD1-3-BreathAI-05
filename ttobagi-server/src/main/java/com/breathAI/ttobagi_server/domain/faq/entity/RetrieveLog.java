@@ -18,6 +18,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RetrieveLog {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "retrieve_id")
+    private Long retrieveId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "analysis_id", foreignKey = @ForeignKey(name = "fk_retrieve_analysis_id"),
                 columnDefinition = "BIGINT COMMENT '검색 기반 분석 ID (FAQ DB 버전 추적)'")
