@@ -7,12 +7,13 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "gold_faq_edit_history")
+@Table(name = "gold_faq_edit_history", comment = "현행 FAQ 직접 수정 이력")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class FaqEditHistory {
     
@@ -21,33 +22,36 @@ public class FaqEditHistory {
     @Column(name = "history_id")
     private Long historyId;
 
-    @Column(name = "source_seq_num", nullable = false)
+    @Column(name = "source_seq_num", nullable = false, 
+            columnDefinition = "INT COMMENT 'counselling_info.seq_num (Bronze 참조)'")
     private Integer sourceSeqNum;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "analysis_id")
+    @JoinColumn(name = "analysis_id", foreignKey = @ForeignKey(name = "fk_edit_history_analysis_id"),
+                columnDefinition = "BIGINT COMMENT '연관 분석 ID (수동 수정 시 NULL 가능)'")
     private AnalysisJob analysisJob;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "edited_by", nullable = false)
+    @JoinColumn(name = "edited_by", nullable = false, foreignKey = @ForeignKey(name = "fk_edit_history_user_id"))
     private User editedBy;
 
-    @Column(name = "before_question", columnDefinition = "TEXT")
+    @Column(name = "before_question", columnDefinition = "TEXT COMMENT '수정 전 질문'")
     private String beforeQuestion;
 
-    @Column(name = "before_answer", columnDefinition = "LONGTEXT")
+    @Column(name = "before_answer", columnDefinition = "LONGTEXT COMMENT '수정 전 답변'")
     private String beforeAnswer;
 
-    @Column(name = "after_question", columnDefinition = "TEXT")
+    @Column(name = "after_question", columnDefinition = "TEXT COMMENT '수정 후 질문'")
     private String afterQuestion;
 
-    @Column(name = "after_answer", columnDefinition = "LONGTEXT")
+    @Column(name = "after_answer", columnDefinition = "LONGTEXT COMMENT '수정 후 답변'")
     private String afterAnswer;
 
-    @Column(name = "edit_reason", columnDefinition = "TEXT")
+    @Column(name = "edit_reason", columnDefinition = "TEXT COMMENT '수정 사유'")
     private String editReason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
+    @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
     @PrePersist

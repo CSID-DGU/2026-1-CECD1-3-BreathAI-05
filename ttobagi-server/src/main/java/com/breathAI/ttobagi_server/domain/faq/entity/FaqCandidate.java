@@ -54,6 +54,12 @@ public class FaqCandidate {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "occurrence_count")
+    private Integer occurrenceCount;
+
+    @Column(name = "representative_keywords", columnDefinition = "JSON")
+    private String representativeKeywords;
+
     public enum CandidateType {
         NEW, EXPAND
     }
@@ -77,28 +83,33 @@ public class FaqCandidate {
     @Builder
     public FaqCandidate(AnalysisJob analysisJob, Cluster cluster, 
                         CandidateType candidateType, String standardQuestion,
-                        String answerDraft) {
+                        String answerDraft, Integer occurrenceCount, String representativeKeywords) {
         this.analysisJob = analysisJob;
         this.cluster = cluster;
         this.candidateType = candidateType;
         this.standardQuestion = standardQuestion;
         this.answerDraft = answerDraft;
+        this.occurrenceCount = occurrenceCount;
+        this.representativeKeywords = representativeKeywords;
+        this.reviewStatus = ReviewStatus.PENDING;
     }
 
     public void accept(User reviewer) {
-        if (this.reviewStatus != ReviewStatus.PENDING) {
-            throw new IllegalStateException("이미 검토 완료된 항목입니다.");
-        }
+        validatePendingStatus();
         this.reviewStatus = ReviewStatus.ACCEPTED;
         this.reviewedBy = reviewer;
     }
 
     public void reject(User reviewer) {
-        if (this.reviewStatus != ReviewStatus.PENDING) {
-        throw new IllegalStateException("이미 검토 완료된 항목입니다.");
-    }
+        validatePendingStatus();
         this.reviewStatus = ReviewStatus.REJECTED;
         this.reviewedBy = reviewer;
+    }
+
+    private void validatePendingStatus() {
+        if (this.reviewStatus != ReviewStatus.PENDING) {
+            throw new IllegalStateException("이미 검토 완료된 항목입니다.");
+        }
     }
 
 }
