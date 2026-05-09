@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -17,7 +18,8 @@ import java.time.LocalDateTime;
             name = "uq_candidate_synonym",
             columnNames = {"candidate_id", "synonym_text"}
         )
-    }
+    },
+    comment = "유사어/동의어 후보"
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SynonymCandidate {
@@ -28,17 +30,18 @@ public class SynonymCandidate {
     private Long synonymId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "candidate_id", nullable = false)
+    @JoinColumn(name = "candidate_id", nullable = false, foreignKey = @ForeignKey(name = "fk_synonym_candidate_id"))
     private FaqCandidate candidate;
 
-    @Column(name = "synonym_text", nullable = false, length = 100)
+    @Column(name = "synonym_text", nullable = false, length = 100, columnDefinition = "VARCHAR(100) COMMENT '유사어 문구'")
     private String synonymText;
 
-    @Column(name = "synonym_type", length = 20)
+    @Column(name = "synonym_type", length = 20, columnDefinition = "VARCHAR(20) COMMENT 'TYPO / ABBR / SYNONYM'")
     @Enumerated(EnumType.STRING)
     private SynonymType synonymType;
 
     @Column(name = "created_at", nullable = false, updatable = false)
+    @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
     public enum SynonymType {
@@ -47,7 +50,7 @@ public class SynonymCandidate {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now();
     }
 
     @Builder
