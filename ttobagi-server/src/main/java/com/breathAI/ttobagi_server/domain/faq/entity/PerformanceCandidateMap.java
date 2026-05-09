@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -17,7 +18,8 @@ import java.time.LocalDateTime;
             name = "uq_comparison_candidate",
             columnNames = {"comparison_id", "candidate_id"}
         )
-    }
+    },
+    comment = "성능 비교-FAQ 후보 매핑 (어느 후보가 반영되어 성능이 개선됐는지 추적)"
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PerformanceCandidateMap {
@@ -28,19 +30,20 @@ public class PerformanceCandidateMap {
     private Long mapId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "comparison_id", nullable = false)
+    @JoinColumn(name = "comparison_id", nullable = false, foreignKey = @ForeignKey(name = "fk_perf_map_comparison_id"))
     private PerformanceComparison comparison;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "candidate_id", nullable = false)
+    @JoinColumn(name = "candidate_id", nullable = false, foreignKey = @ForeignKey(name = "fk_perf_map_candidate_id"))
     private FaqCandidate candidate;
 
     @Column(name = "created_at", nullable = false, updatable = false)
+    @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now();
     }
 
     @Builder

@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,7 +21,8 @@ import java.time.LocalDateTime;
             name = "uq_analysis", 
             columnNames = {"analysis_id"}
         )
-    }
+    },
+    comment = "미답변율 개선 전·후 비교 (FAQ 후보 반영 효과 측정)"
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PerformanceComparison {
@@ -31,31 +33,41 @@ public class PerformanceComparison {
     private Long comparisonId;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "analysis_id", nullable = false)
+    @JoinColumn(name = "analysis_id", nullable = false, foreignKey = @ForeignKey(name = "fk_perf_comp_analysis_id"))
     private AnalysisJob analysisJob;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "before_stat_date", referencedColumnName = "stat_date", nullable = false)    private UsageStat usageStat;
+    @JoinColumn(name = "before_stat_date", referencedColumnName = "stat_date", nullable = false, 
+                foreignKey = @ForeignKey(name = "fk_perf_comp_usage_stat"))
+    private UsageStat usageStat;
 
-    @Column(name = "after_unanswer_cnt")
+    @Column(name = "after_unanswer_cnt", columnDefinition = "INT COMMENT '개선 후 예상 미답변 건수'")
     private Integer afterUnanswerCnt;
 
-    @Column(name = "after_unanswer_rate", precision = 5, scale = 2)
+    @Column(name = "after_unanswer_rate", precision = 5, scale = 2, 
+            columnDefinition = "DECIMAL(5,2) COMMENT '개선 후 예상 미답변율(%)'")
     private BigDecimal afterUnanswerRate;
 
-    @Column(name = "accuracy_gain", precision = 5, scale = 2)
+    @Column(name = "accuracy_gain", precision = 5, scale = 2, 
+            columnDefinition = "DECIMAL(5,2) COMMENT '예상 정확도 향상치(%)'")
     private BigDecimal accuracyGain;
 
-    @Column(name = "false_positive_rate", precision = 5, scale = 2)
+    @Column(name = "false_positive_rate", precision = 4, scale = 3, 
+            columnDefinition = "DECIMAL(4,3) COMMENT '오답 발생률'")
     private BigDecimal falsePositiveRate;
 
-    @Column(name = "eval_threshold", precision = 4, scale = 3)
+    @Column(name = "eval_threshold", precision = 4, scale = 3, 
+            columnDefinition = "DECIMAL(4,3) COMMENT '적용 임계값 (예: 0.75)'")
     private BigDecimal evalThreshold;
 
-    @Column(name = "actual_unanswer_cnt")
+    @Column(name = "actual_unanswer_cnt", columnDefinition = "INT COMMENT '실제 반영 후 미답변 건수'")
     private Integer actualUnanswerCnt;
 
+    @Column(name = "resolved_count_by_ai", columnDefinition = "INT COMMENT 'AI를 통해 해결된 미답변 로그 수'")
+    private Integer resolvedCountByAi;
+
     @Column(name = "created_at", nullable = false, updatable = false)
+    @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -67,7 +79,7 @@ public class PerformanceComparison {
     public PerformanceComparison(AnalysisJob analysisJob, UsageStat usageStat,
                                  Integer afterUnanswerCnt, BigDecimal afterUnanswerRate,
                                  BigDecimal accuracyGain, BigDecimal falsePositiveRate,
-                                 BigDecimal evalThreshold) {
+                                 BigDecimal evalThreshold, Integer resolvedCountByAi) {
         this.analysisJob = analysisJob;
         this.usageStat = usageStat;
         this.afterUnanswerCnt = afterUnanswerCnt;
@@ -75,6 +87,7 @@ public class PerformanceComparison {
         this.accuracyGain = accuracyGain;
         this.falsePositiveRate = falsePositiveRate;
         this.evalThreshold = evalThreshold;
+        this.resolvedCountByAi = resolvedCountByAi;
     }
 
     public void updateActualUnanswerCnt(Integer actualUnanswerCnt) {
