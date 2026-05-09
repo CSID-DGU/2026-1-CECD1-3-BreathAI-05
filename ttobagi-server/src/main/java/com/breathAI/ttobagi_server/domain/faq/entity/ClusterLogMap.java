@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -17,7 +18,8 @@ import java.time.LocalDateTime;
             name = "uq_cluster_log",
             columnNames = {"cluster_id", "source_log_seq_num"}
         )
-    }
+    },
+    comment = "클러스터-로그 매핑"
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ClusterLogMap {
@@ -28,17 +30,30 @@ public class ClusterLogMap {
     private Long mapId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cluster_id", nullable = false)
+    @JoinColumn(name = "cluster_id", nullable = false, foreignKey = @ForeignKey(name = "fk_map_cluster_id"))
     private Cluster cluster;
 
-    @Column(name = "source_log_seq_num", nullable = false)
+    @Column(name = "source_log_seq_num", nullable = false, columnDefinition = "INT COMMENT 'Bronze chatting_log.seq_num'")
     private Integer sourceLogSeqNum;
 
-    @Column(name = "log_type", nullable = false, length = 20)
+    @Column(name = "log_type", nullable = false, length = 20, columnDefinition = "VARCHAR(20) COMMENT 'CORRECT / LOW_QUALITY / UNANSWER'")
     @Enumerated(EnumType.STRING)
     private LogType logType;
 
+    @Column(name = "unanswered_reason", length = 50, columnDefinition = "VARCHAR(50) COMMENT '미답변 사유 (키워드 미등록 등)'")
+    private String unansweredReason;
+
+    @Column(name = "umap_x", columnDefinition = "FLOAT COMMENT 'UMAP x 좌표'")
+    private Float umapX;
+    
+    @Column(name = "umap_y", columnDefinition = "FLOAT COMMENT 'UMAP y 좌표'")
+    private Float umapY;
+
+    @Column(name = "log_text", columnDefinition = "TEXT COMMENT '사용자 실제 입력 문구 복사본'")
+    private String logText;
+
     @Column(name = "created_at", nullable = false, updatable = false)
+    @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
     public enum LogType {
@@ -51,9 +66,14 @@ public class ClusterLogMap {
     }
 
     @Builder
-    public ClusterLogMap(Cluster cluster, Integer sourceLogSeqNum, LogType logType) {
+    public ClusterLogMap(Cluster cluster, Integer sourceLogSeqNum, LogType logType,
+                         String unansweredReason, Float umapX, Float umapY, String logText) {
         this.cluster = cluster;
         this.sourceLogSeqNum = sourceLogSeqNum;
         this.logType = logType;
+        this.unansweredReason = unansweredReason;
+        this.umapX = umapX;
+        this.umapY = umapY;
+        this.logText = logText;
     }
 }
