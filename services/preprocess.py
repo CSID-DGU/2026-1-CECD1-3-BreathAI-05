@@ -1,9 +1,9 @@
 """또타24 미답변 로그 전처리 — 텍스트 정제 단일 책임.
 
 기능:
-  1. 언어 감지 + 외국어→한국어 번역 (한글 등록 원칙)
-  2. PII 마스킹 (전화/이메일/주민/카드/URL → 토큰)
-  3. 열차번호 보호 토큰화 (4자리=서울메트로, 6자리=코레일)
+  1. 언어 감지 + 외국어→한국어 번역 (옵션)
+  2. PII 마스킹 (옵션)
+  3. 열차번호 보호 토큰화 (마스킹 옵션에 포함)
   4. 이중 정규화 (클러스터링용 강함 / 생성용 오타 보존)
 
 응답 라우팅·strategy 분류는 이 모듈 책임이 아님 — 클러스터링 + LLM이 담당.
@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -39,6 +40,23 @@ COL_KEYWORDS = '질문 핵심 키워드'
 COL_ANSWER_DIR = '답변 생성 방향 검토'
 COL_PROB = '답변확률'
 COL_DATE = '날짜'
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """
+    환경변수 기반 boolean 옵션 파서.
+
+    pipeline_runner.py에서 다음 환경변수를 설정하면 preprocess가 이를 반영한다.
+    - TTOBAGI_IS_MASKING_ENABLED
+    - TTOBAGI_IS_TRANSLATION_ENABLED
+    """
+
+    raw = os.getenv(name)
+
+    if raw is None:
+        return default
+
+    return raw.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
 
 # 1. 입력 정규화: int/float/NaN/공백 섞인 값을 깔끔한 str로
@@ -74,8 +92,10 @@ def translate_to_ko(text: str, src_lang: str) -> str | None:
     """한국어 등록 원칙: 외국어로 감지되면 한국어로 번역."""
     if src_lang in ('ko', 'empty', 'unknown') or not text.strip():
         return None
+
     if text in _translate_cache:
         return _translate_cache[text]
+
     try:
         ko = GoogleTranslator(source='auto', target='ko').translate(text)
         if not ko or ko.strip() == text.strip():
@@ -84,6 +104,7 @@ def translate_to_ko(text: str, src_lang: str) -> str | None:
         ko = None
     except Exception:
         ko = None
+
     _translate_cache[text] = ko
     return ko
 
@@ -99,18 +120,23 @@ RE_URL = re.compile(r'https?://\S+|www\.\S+')
 
 def mask_pii(text: str) -> tuple[str, dict]:
     ent: dict[str, list[str]] = {}
+
     if m := RE_MOBILE.findall(text):
         ent['mobile'] = m
     text = RE_MOBILE.sub('[TEL]', text)
+
     if m := RE_TEL.findall(text):
         ent['tel'] = m
     text = RE_TEL.sub('[TEL]', text)
+
     if m := RE_EMAIL.findall(text):
         ent['email'] = m
     text = RE_EMAIL.sub('[EMAIL]', text)
+
     text = RE_RRN.sub('[RRN]', text)
     text = RE_CARD.sub('[CARD]', text)
     text = RE_URL.sub('[URL]', text)
+
     return text, ent
 
 
@@ -123,16 +149,20 @@ def tag_numbers(text: str) -> tuple[str, dict]:
 
     def repl(m: re.Match) -> str:
         n = m.group()
-        L = len(n)
-        if L == 4:
+        length = len(n)
+
+        if length == 4:
             ent.setdefault('metro_train', []).append(n)
             return '[METRO_TRAIN]'
-        if L == 6:
+
+        if length == 6:
             ent.setdefault('korail_train', []).append(n)
             return '[KORAIL_TRAIN]'
-        if L == 5 or L >= 7:
+
+        if length == 5 or length >= 7:
             ent.setdefault('discarded_num', []).append(n)
             return ' '
+
         return n
 
     return RE_NUM.sub(repl, text), ent
@@ -162,32 +192,80 @@ def normalize_for_generation(text: str) -> str:
     return RE_WS.sub(' ', text).strip()
 
 
-# 6. 파이프라인
+# 6. 입력 검증
+def validate_input_columns(df: pd.DataFrame) -> None:
+    """
+    기존 파이프라인이 요구하는 입력 컬럼이 존재하는지 확인한다.
+    """
+
+    required_columns = [
+        COL_ID,
+        COL_QUESTION,
+        COL_VALID,
+        COL_TYPE,
+        COL_KEYWORDS,
+        COL_ANSWER_DIR,
+        COL_PROB,
+        COL_DATE,
+    ]
+
+    missing_columns = [
+        col for col in required_columns
+        if col not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            '입력 파일에 필수 컬럼이 없습니다: '
+            + ', '.join(missing_columns)
+        )
+
+
+# 7. 파이프라인
 def load() -> pd.DataFrame:
     df = pd.read_csv(INPUT_CSV, encoding='utf-8-sig')
     df.columns = [c.replace('\n', '') for c in df.columns]
+    validate_input_columns(df)
     return df
 
 
-def run(df: pd.DataFrame) -> pd.DataFrame:
-    """원문 → 번역 → PII 마스킹 → 열차번호 토큰화 → 이중 정규화."""
+def run(
+    df: pd.DataFrame,
+    is_masking_enabled: bool = True,
+    is_translation_enabled: bool = False,
+) -> pd.DataFrame:
+    """
+    원문 → 선택적 번역 → 선택적 PII/열차번호 마스킹 → 이중 정규화.
+    """
+
     rows = []
+
     for _, row in df.iterrows():
         raw = to_text(row[COL_QUESTION])
         lang = detect_lang(raw)
 
-        translated = translate_to_ko(raw, lang)
+        if is_translation_enabled:
+            translated = translate_to_ko(raw, lang)
+        else:
+            translated = None
+
         working = translated if translated else raw
 
-        masked, pii_ent = mask_pii(working)
-        tagged, num_ent = tag_numbers(masked)
+        entities = {}
+
+        if is_masking_enabled:
+            masked, pii_ent = mask_pii(working)
+            tagged, num_ent = tag_numbers(masked)
+            entities.update(pii_ent)
+            entities.update(num_ent)
+        else:
+            tagged = working
+
+        if translated:
+            entities['translated_from'] = lang
 
         clu = normalize_for_clustering(tagged)
         gen = normalize_for_generation(tagged)
-
-        entities = {**pii_ent, **num_ent}
-        if translated:
-            entities['translated_from'] = lang
 
         rows.append({
             'logId': row[COL_ID],
@@ -203,6 +281,7 @@ def run(df: pd.DataFrame) -> pd.DataFrame:
             'labelAnswerDirection': row.get(COL_ANSWER_DIR),
             'labelMatchProbability': row.get(COL_PROB),
         })
+
     return pd.DataFrame(rows)
 
 
@@ -211,25 +290,81 @@ def save(out: pd.DataFrame) -> None:
     print(f'  {OUTPUT_CSV.stat().st_size:>9,} bytes  {len(out):>5} rows  {OUTPUT_CSV.name}')
 
 
-def report(out: pd.DataFrame) -> None:
+def report(
+    out: pd.DataFrame,
+    is_masking_enabled: bool,
+    is_translation_enabled: bool,
+) -> None:
+    print('전처리 옵션:')
+    print(f'  isMaskingEnabled     = {is_masking_enabled}')
+    print(f'  isTranslationEnabled = {is_translation_enabled}')
+    print()
+
     print('언어 분포:')
     print(out['lang'].value_counts().to_string())
     print()
+
     translated = out['extractedEntities'].astype(str).str.contains('translated_from').sum()
     print(f'번역된 행: {translated}건')
-    print(f'PII 토큰 [TEL] 포함: {out["normalizedForClustering"].str.contains("[TEL]", regex=False, na=False).sum()}건')
-    print(f'열차번호 [METRO_TRAIN]: {out["normalizedForClustering"].str.contains("[METRO_TRAIN]", regex=False, na=False).sum()}건')
-    print(f'열차번호 [KORAIL_TRAIN]: {out["normalizedForClustering"].str.contains("[KORAIL_TRAIN]", regex=False, na=False).sum()}건')
+
+    print(
+        f'PII 토큰 [TEL] 포함: '
+        f'{out["normalizedForClustering"].str.contains("[TEL]", regex=False, na=False).sum()}건'
+    )
+    print(
+        f'열차번호 [METRO_TRAIN]: '
+        f'{out["normalizedForClustering"].str.contains("[METRO_TRAIN]", regex=False, na=False).sum()}건'
+    )
+    print(
+        f'열차번호 [KORAIL_TRAIN]: '
+        f'{out["normalizedForClustering"].str.contains("[KORAIL_TRAIN]", regex=False, na=False).sum()}건'
+    )
 
 
-def main() -> None:
+def main(
+    is_masking_enabled: bool | None = None,
+    is_translation_enabled: bool | None = None,
+) -> None:
+    """
+    전처리 실행 진입점.
+
+    직접 실행 시:
+      python -m services.preprocess
+
+    /pipeline에서 실행 시:
+      pipeline_runner.py가 환경변수로 옵션을 설정한 뒤 run_full_pipeline()을 호출한다.
+    """
+
+    if is_masking_enabled is None:
+        is_masking_enabled = _env_bool(
+            'TTOBAGI_IS_MASKING_ENABLED',
+            True,
+        )
+
+    if is_translation_enabled is None:
+        is_translation_enabled = _env_bool(
+            'TTOBAGI_IS_TRANSLATION_ENABLED',
+            False,
+        )
+
     df = load()
     print(f'입력: {INPUT_CSV.name} ({len(df)}행)\n')
-    out = run(df)
+
+    out = run(
+        df,
+        is_masking_enabled=is_masking_enabled,
+        is_translation_enabled=is_translation_enabled,
+    )
+
     print('산출물:')
     save(out)
     print()
-    report(out)
+
+    report(
+        out,
+        is_masking_enabled=is_masking_enabled,
+        is_translation_enabled=is_translation_enabled,
+    )
 
 
 if __name__ == '__main__':
