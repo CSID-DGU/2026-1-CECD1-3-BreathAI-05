@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.AccessLevel;
 import lombok.Builder;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -37,6 +40,9 @@ public class User {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

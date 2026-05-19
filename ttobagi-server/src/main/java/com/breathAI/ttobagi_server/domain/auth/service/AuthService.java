@@ -8,6 +8,7 @@ import com.breathAI.ttobagi_server.domain.auth.entity.User.Role;
 import com.breathAI.ttobagi_server.domain.auth.entity.PasswordResetToken;
 import com.breathAI.ttobagi_server.domain.auth.repository.UserRepository;
 import com.breathAI.ttobagi_server.domain.auth.repository.PasswordResetTokenRepository;
+import com.breathAI.ttobagi_server.domain.dashboard.repository.UploadFileRepository;
 import com.breathAI.ttobagi_server.global.exception.CustomException;
 import com.breathAI.ttobagi_server.global.exception.ErrorCode;
 import com.breathAI.ttobagi_server.global.util.JwtUtil;
@@ -19,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -31,6 +34,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+private final UploadFileRepository uploadFileRepository;
 
     @Value("${system.admin-code}")
     private String systemAdminCode;
@@ -66,12 +70,24 @@ public class AuthService {
 
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user);
+
+        LocalDateTime accessTokenExpiresAt = jwtUtil.extractExpiration(accessToken)
+            .toInstant()
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime();
+
+        LocalDateTime refreshTokenExpiresAt = jwtUtil.extractExpiration(refreshToken)
+            .toInstant()
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime();
         
-        return LoginResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .build();
+            return LoginResponse.builder()
+            .accessToken(accessToken)
+            .accessTokenExpiresAt(accessTokenExpiresAt)
+            .refreshToken(refreshToken)
+            .refreshTokenExpiresAt(refreshTokenExpiresAt)
+            .tokenType("Bearer")
+            .build();
     }
 
     @Transactional
@@ -104,6 +120,7 @@ public class AuthService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN));
 
         if (resetToken.isExpired()) {
+            passwordResetTokenRepository.delete(resetToken);
             throw new CustomException(ErrorCode.EXPIRED_TOKEN);
         }
         
@@ -162,6 +179,10 @@ public class AuthService {
     public void deleteMyInfo(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        uploadFileRepository.findByUploadedBy(user)
+                .forEach(file -> {
+                    file.clearUploadedBy();
+                });
         userRepository.delete(user);
     }
 
@@ -181,9 +202,21 @@ public class AuthService {
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
+        LocalDateTime newaccessTokenExpiresAt = jwtUtil.extractExpiration(newAccessToken)
+            .toInstant()
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime();
+
+        LocalDateTime newrefreshTokenExpiresAt = jwtUtil.extractExpiration(newRefreshToken)
+                .toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
+
         return TokenResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
+                .accessTokenExpiresAt(newaccessTokenExpiresAt)
+                .refreshTokenExpiresAt(newrefreshTokenExpiresAt)
                 .tokenType("Bearer")
                 .build();
     }

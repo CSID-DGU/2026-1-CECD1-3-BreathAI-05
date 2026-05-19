@@ -42,13 +42,18 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid LoginRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.login(request)));
+        return ResponseEntity.ok(ApiResponse.success(authService.login(request), "로그인에 성공하였습니다."));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout() {
+        return ResponseEntity.ok(ApiResponse.success(null, "로그아웃 되었습니다."));
     }
 
     @PostMapping("/password/reset")
     public ResponseEntity<ApiResponse<PasswordResetResponse>> resetPassword(
             @RequestBody @Valid PasswordResetRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.resetPassword(request)));
+        return ResponseEntity.ok(ApiResponse.success(authService.resetPassword(request), "비밀번호 재설정 메일이 발송되었습니다."));
     }
 
     @PostMapping("/password/reset/confirm")
@@ -61,14 +66,14 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserInfoResponse>> getMyInfo(
             @AuthenticationPrincipal String email) {
-        return ResponseEntity.ok(ApiResponse.success(authService.getMyInfo(email)));
+        return ResponseEntity.ok(ApiResponse.success(authService.getMyInfo(email), "사용자 정보를 성공적으로 불러왔습니다."));
     }
 
     @PatchMapping("/me")
     public ResponseEntity<ApiResponse<UserInfoResponse>> updateMyInfo(
             @AuthenticationPrincipal String email,
             @RequestBody @Valid UserUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.updateMyInfo(email, request)));
+        return ResponseEntity.ok(ApiResponse.success(authService.updateMyInfo(email, request), "사용자 정보가 성공적으로 수정되었습니다."));
     }
 
     @PatchMapping("/promote")
@@ -88,6 +93,6 @@ public class AuthController {
     @PostMapping("/reissue")
     public ResponseEntity<ApiResponse<TokenResponse>> reissue(@RequestBody TokenRequest request) {
         TokenResponse response = authService.reissue(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(response, "토큰이 재발급되었습니다."));
     }
 }
