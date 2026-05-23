@@ -18,7 +18,7 @@ from app.services.callback import send_callback, send_status_callback
 #
 # 프로젝트 루트:
 # 2026-1-CECD1-4-BreathAI-15/
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[2] 
 
 # 기존 분석 파이프라인이 위치한 루트 services 디렉터리를 import 경로에 추가
 if str(PROJECT_ROOT) not in sys.path:

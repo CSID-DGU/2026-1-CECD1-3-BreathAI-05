@@ -18,8 +18,8 @@ def get_db_connection() -> Connection:
     - DB_PASSWORD
     """
 
-    host = os.getenv("DB_HOST", "127.0.0.1")
-    port = int(os.getenv("DB_PORT", "3307"))
+    host = os.getenv("DB_HOST", "host.docker.internal")
+    port = int(os.getenv("DB_PORT", "3306"))
     database = os.getenv("DB_NAME", "ttobagi_db")
     user = os.getenv("DB_USER", "tbg_admin")
     password = os.getenv("DB_PASSWORD", "tbg_pw_260501")

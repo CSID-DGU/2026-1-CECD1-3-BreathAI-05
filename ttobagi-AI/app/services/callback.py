@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import requests
 
 
-DEFAULT_BACKEND_BASE_URL = "http://localhost:8080"
+DEFAULT_BACKEND_BASE_URL = "http://host.docker.internal:8080"
 
 
 def _get_backend_base_url() -> str:
