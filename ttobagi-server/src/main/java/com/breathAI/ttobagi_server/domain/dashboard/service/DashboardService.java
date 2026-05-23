@@ -714,7 +714,6 @@ public class DashboardService {
                 .candidateType(candidate.getCandidateType().name())
                 .standardQuestion(candidate.getStandardQuestion())
                 
-                // ◀ 여기를 통째로 가공 없이 리스트 그대로 대입하도록 수정합니다!
                 .representativeKeywords(candidate.getRepresentativeKeywords()) 
                 
                 .answerDraft(candidate.getAnswerDraft())
