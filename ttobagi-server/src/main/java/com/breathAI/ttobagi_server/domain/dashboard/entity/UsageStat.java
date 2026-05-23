@@ -25,12 +25,13 @@ public class UsageStat {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(
-        name = "stat_date", 
-        referencedColumnName = "stat_date", 
-        nullable = false, 
+        name = "stat_date",
+        referencedColumnName = "stat_date",
+        nullable = false,
+        unique = true,
         foreignKey = @ForeignKey(name = "fk_usage_stat_date")
     )
-    private StatDate statDate;
+private StatDate statDate;
 
     @Column(name = "total_cnt", nullable = false, columnDefinition = "INT DEFAULT 0 COMMENT '총 인입 건수'")
     private Integer totalCnt;

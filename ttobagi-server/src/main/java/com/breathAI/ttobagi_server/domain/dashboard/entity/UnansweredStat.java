@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
+import com.breathAI.ttobagi_server.global.enums.UnansweredReason;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -29,9 +30,9 @@ public class UnansweredStat {
     )
     private AnalysisJob analysisJob;
 
-    @Column(name = "reason", nullable = false, length = 50,
-            columnDefinition = "VARCHAR(50) COMMENT '미답변 사유 (키워드 미등록 / 외국어 질의 / 보안/정책상 답변 불가 / 기타)'")
-    private String reason;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason", nullable = false, length = 50)
+    private UnansweredReason reason;
 
     @Column(name = "current_unanswer_rate", precision = 5, scale = 2,
             columnDefinition = "DECIMAL(5,2) COMMENT '분석 결과 적용 후 예상 미답변율 (%)'")
@@ -51,9 +52,9 @@ public class UnansweredStat {
         this.createdAt = LocalDateTime.now();
         if (this.unanswerCount == null) this.unanswerCount = 0;
     }
-
+    
     @Builder
-    public UnansweredStat(AnalysisJob analysisJob, String reason,
+    public UnansweredStat(AnalysisJob analysisJob, UnansweredReason reason,
                           BigDecimal currentUnanswerRate, Integer unanswerCount) {
         this.analysisJob = analysisJob;
         this.reason = reason;

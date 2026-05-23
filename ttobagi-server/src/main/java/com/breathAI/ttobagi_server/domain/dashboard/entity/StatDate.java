@@ -10,18 +10,18 @@ import java.time.LocalDate;
 
 @Entity
 @Getter
-@Table(name = "gold_stat_date")
+@Table(name = "gold_stat_date", comment = "통계 기준 날짜 마스터 테이블")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StatDate {
     
     @Id
-    @Column(name = "stat_date", nullable = false)
+    @Column(name = "stat_date", nullable = false, columnDefinition = "DATE COMMENT '통계 기준 날짜 (PK)'")
     private LocalDate statDate;
 
-    @Column(name = "stat_year", nullable = false)
+    @Column(name = "stat_year", nullable = false, columnDefinition = "INT COMMENT '연도 (추출값)'")
     private Integer statYear;
 
-    @Column(name = "stat_month", nullable = false)
+    @Column(name = "stat_month", nullable = false, columnDefinition = "INT COMMENT '월 (추출값)'")
     private Integer statMonth;
 
     @Builder

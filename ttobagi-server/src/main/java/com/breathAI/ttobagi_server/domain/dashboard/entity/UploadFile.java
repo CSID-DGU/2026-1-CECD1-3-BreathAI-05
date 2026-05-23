@@ -27,10 +27,15 @@ public class UploadFile {
     private String uploadId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "uploaded_by", nullable = false, foreignKey = @ForeignKey(name = "fk_upload_user_id"))
+    @JoinColumn(name = "uploaded_by", nullable = true, foreignKey = @ForeignKey(name = "fk_upload_user_id"))
     private User uploadedBy;
 
-    @Column(name = "file_name", nullable = false, length = 255, columnDefinition = "VARCHAR(255) COMMENT '저장된 파일명 (Unique)'")
+    @Column(name = "original_file_name", nullable = false,
+            columnDefinition = "VARCHAR(255) COMMENT '사용자가 올린 실제 파일명'")
+    private String originalFileName;
+
+    @Column(name = "file_name", nullable = false, unique = true,
+            columnDefinition = "VARCHAR(255) COMMENT '서버 저장용 고유 파일명 (uuid_원본파일명)'")
     private String fileName;
 
     @Column(name = "file_path", nullable = false, length = 500, columnDefinition = "VARCHAR(500) COMMENT '파일 저장 경로'")
@@ -49,6 +54,9 @@ public class UploadFile {
     @Column(name = "error_message", columnDefinition = "TEXT COMMENT '적재 실패 시 사유'")
     private String errorMessage;
 
+    @Column(name = "file_hash", length = 64, columnDefinition = "VARCHAR(64) COMMENT '파일 SHA-256 해시값 (중복 업로드 방지)'")
+    private String fileHash;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @ColumnDefault("CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
@@ -64,12 +72,15 @@ public class UploadFile {
     }
 
     @Builder
-    public UploadFile(String uploadId, User uploadedBy, String fileName, String filePath, Long fileSize) {
+    public UploadFile(String uploadId, User uploadedBy, String fileName, String originalFileName, 
+                    String filePath, Long fileSize, String fileHash) { 
         this.uploadId = uploadId;
         this.uploadedBy = uploadedBy;
         this.fileName = fileName;
+        this.originalFileName = originalFileName;
         this.filePath = filePath;
         this.fileSize = fileSize;
+        this.fileHash = fileHash;
         this.status = Status.UPLOADED;
     }
 
@@ -81,5 +92,9 @@ public class UploadFile {
     public void fail(String errorMessage) {
         this.status = Status.FAIL;
         this.errorMessage = errorMessage;
+    }
+
+    public void clearUploadedBy() {
+        this.uploadedBy = null;
     }
 }
