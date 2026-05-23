@@ -9,6 +9,11 @@ import com.breathAI.ttobagi_server.domain.auth.entity.PasswordResetToken;
 import com.breathAI.ttobagi_server.domain.auth.repository.UserRepository;
 import com.breathAI.ttobagi_server.domain.auth.repository.PasswordResetTokenRepository;
 import com.breathAI.ttobagi_server.domain.dashboard.repository.UploadFileRepository;
+import com.breathAI.ttobagi_server.domain.faq.repository.FaqActionLogRepository;    
+import com.breathAI.ttobagi_server.domain.faq.repository.FaqCandidateRepository;
+import com.breathAI.ttobagi_server.domain.faq.repository.FaqEditHistoryRepository;
+import com.breathAI.ttobagi_server.domain.faq.repository.FaqRepository;
+import com.breathAI.ttobagi_server.domain.faq.repository.RetrieveLogRepository;
 import com.breathAI.ttobagi_server.global.exception.CustomException;
 import com.breathAI.ttobagi_server.global.exception.ErrorCode;
 import com.breathAI.ttobagi_server.global.util.JwtUtil;
@@ -34,23 +39,28 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
-private final UploadFileRepository uploadFileRepository;
+    private final UploadFileRepository uploadFileRepository;
+    private final FaqActionLogRepository faqActionLogRepository;
+    private final FaqCandidateRepository faqCandidateRepository;
+    private final FaqEditHistoryRepository faqEditHistoryRepository;
+    private final FaqRepository faqRepository;
+    private final RetrieveLogRepository retrieveLogRepository;
 
     @Value("${system.admin-code}")
     private String systemAdminCode;
 
     @Transactional
     public void signUp(SignupRequest request) {
-        // 1. 이메일 중복 체크
+        // 이메일 중복 체크
         if (userRepository.existsByEmail(request.getEmail().toLowerCase())) {
             throw new CustomException(ErrorCode.EMAIL_DUPLICATED);
         }
 
-        // 2. 관리자 코드 검증 및 Role 결정
+        // 관리자 코드 검증 및 Role 결정
         Role role = (request.getAdminCode() != null && request.getAdminCode().equals(systemAdminCode))
                     ? Role.ADMIN : Role.USER;
         
-        // 3. entity 생성 및 저장
+        // entity 생성 및 저장
         User user = User.builder()
             .email(request.getEmail().toLowerCase())
             .password(passwordEncoder.encode(request.getPassword()))
@@ -180,9 +190,12 @@ private final UploadFileRepository uploadFileRepository;
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         uploadFileRepository.findByUploadedBy(user)
-                .forEach(file -> {
-                    file.clearUploadedBy();
-                });
+                .forEach(file -> file.clearUploadedBy());
+        faqActionLogRepository.clearActedBy(user);
+        faqCandidateRepository.clearReviewedBy(user);
+        faqEditHistoryRepository.clearEditedBy(user);
+        faqRepository.clearCreatedBy(user);
+        retrieveLogRepository.clearUser(user);
         userRepository.delete(user);
     }
 
