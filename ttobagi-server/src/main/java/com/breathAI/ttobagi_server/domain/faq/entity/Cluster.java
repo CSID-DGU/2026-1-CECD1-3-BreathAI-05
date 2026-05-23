@@ -8,6 +8,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.util.List;
 
 import java.time.LocalDateTime;
 
@@ -38,8 +41,9 @@ public class Cluster {
     @Column(name = "cluster_label", nullable = false, columnDefinition = "INT COMMENT 'HDBSCAN 번호 (-1=노이즈)'")
     private Integer clusterLabel;
 
-    @Column(name = "top_keywords", columnDefinition = "JSON COMMENT 'TF-IDF Top5 키워드 배열'")
-    private String topKeywords;
+    @JdbcTypeCode(SqlTypes.JSON) 
+    @Column(name = "top_keywords", columnDefinition = "json COMMENT 'TF-IDF Top5 키워드 배열'")
+    private List<String> topKeywords;
 
     @Column(name = "cluster_name", length = 100, columnDefinition = "VARCHAR(100) COMMENT '클러스터 이름 (예: 냉난방 온도 조절)'")
     private String clusterName;
@@ -57,7 +61,8 @@ public class Cluster {
     }  
 
     @Builder
-    public Cluster(AnalysisJob analysisJob, Integer clusterLabel, String clusterName, String topKeywords, Integer clusterSize) {
+    public Cluster(AnalysisJob analysisJob, Integer clusterLabel, String clusterName, 
+                   List<String> topKeywords, Integer clusterSize) { // ◀ 여기도 List<String>으로 변경!
         this.analysisJob = analysisJob;
         this.clusterLabel = clusterLabel;
         this.clusterName = clusterName;

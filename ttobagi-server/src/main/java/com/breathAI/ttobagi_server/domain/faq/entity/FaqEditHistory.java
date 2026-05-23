@@ -22,9 +22,10 @@ public class FaqEditHistory {
     @Column(name = "history_id")
     private Long historyId;
 
-    @Column(name = "source_seq_num", nullable = false, 
-            columnDefinition = "INT COMMENT 'counselling_info.seq_num (Bronze 참조)'")
-    private Integer sourceSeqNum;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "faq_id", nullable = false,
+            foreignKey = @ForeignKey(name = "fk_edit_history_faq_id"))
+    private Faq faq;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "analysis_id", foreignKey = @ForeignKey(name = "fk_edit_history_analysis_id"),
@@ -32,7 +33,8 @@ public class FaqEditHistory {
     private AnalysisJob analysisJob;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "edited_by", nullable = false, foreignKey = @ForeignKey(name = "fk_edit_history_user_id"))
+    @JoinColumn(name = "edited_by", foreignKey = @ForeignKey(name = "fk_edit_history_user_id"),
+                columnDefinition = "BIGINT NOT NULL COMMENT '수정한 관리자 ID'")
     private User editedBy;
 
     @Column(name = "before_question", columnDefinition = "TEXT COMMENT '수정 전 질문'")
@@ -60,10 +62,10 @@ public class FaqEditHistory {
     }
 
     @Builder
-    public FaqEditHistory(Integer sourceSeqNum, AnalysisJob analysisJob,
-                          User editedBy, String beforeQuestion, String beforeAnswer,
-                          String afterQuestion, String afterAnswer, String editReason) {
-        this.sourceSeqNum = sourceSeqNum;
+    public FaqEditHistory(Faq faq, AnalysisJob analysisJob,
+                        User editedBy, String beforeQuestion, String beforeAnswer,
+                        String afterQuestion, String afterAnswer, String editReason) {
+        this.faq = faq;
         this.analysisJob = analysisJob;
         this.editedBy = editedBy;
         this.beforeQuestion = beforeQuestion;

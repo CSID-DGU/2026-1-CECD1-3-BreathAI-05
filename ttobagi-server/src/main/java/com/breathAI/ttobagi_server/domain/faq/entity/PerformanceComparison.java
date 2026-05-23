@@ -37,8 +37,13 @@ public class PerformanceComparison {
     private AnalysisJob analysisJob;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "before_stat_date", referencedColumnName = "stat_date", nullable = false, 
-                foreignKey = @ForeignKey(name = "fk_perf_comp_usage_stat"))
+    @JoinColumn(
+        name = "before_stat_date", 
+        referencedColumnName = "stat_date",
+        nullable = false, 
+        foreignKey = @ForeignKey(name = "fk_perf_comp_usage_stat"),
+        columnDefinition = "DATE NOT NULL COMMENT '비교 기준이 되는 통계 날짜'"
+    )
     private UsageStat usageStat;
 
     @Column(name = "after_unanswer_cnt", columnDefinition = "INT COMMENT '개선 후 예상 미답변 건수'")

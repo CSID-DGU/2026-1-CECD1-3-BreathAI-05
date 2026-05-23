@@ -26,7 +26,7 @@ public class FaqActionLog {
     private FaqCandidate candidate;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "acted_by", nullable = false, foreignKey = @ForeignKey(name = "fk_action_user_id"))
+    @JoinColumn(name = "acted_by", nullable = true, foreignKey = @ForeignKey(name = "fk_action_user_id"))
     private User actedBy;
 
     @Column(name = "action", nullable = false, length = 20, 

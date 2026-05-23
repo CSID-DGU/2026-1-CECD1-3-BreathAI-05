@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
+import com.breathAI.ttobagi_server.global.enums.UnansweredReason;
 
 import java.time.LocalDateTime;
 
@@ -40,8 +41,9 @@ public class ClusterLogMap {
     @Enumerated(EnumType.STRING)
     private LogType logType;
 
-    @Column(name = "unanswered_reason", length = 50, columnDefinition = "VARCHAR(50) COMMENT '미답변 사유 (키워드 미등록 등)'")
-    private String unansweredReason;
+    @Column(name = "unanswered_reason", length = 50, columnDefinition = "VARCHAR(50) COMMENT '미답변 사유 (Enum 매핑)'")
+    @Enumerated(EnumType.STRING)
+    private UnansweredReason unansweredReason;
 
     @Column(name = "umap_x", columnDefinition = "FLOAT COMMENT 'UMAP x 좌표'")
     private Float umapX;
@@ -67,7 +69,7 @@ public class ClusterLogMap {
 
     @Builder
     public ClusterLogMap(Cluster cluster, Integer sourceLogSeqNum, LogType logType,
-                         String unansweredReason, Float umapX, Float umapY, String logText) {
+                         UnansweredReason unansweredReason, Float umapX, Float umapY, String logText) {
         this.cluster = cluster;
         this.sourceLogSeqNum = sourceLogSeqNum;
         this.logType = logType;

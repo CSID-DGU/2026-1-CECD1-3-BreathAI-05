@@ -39,8 +39,12 @@ public class SurgeStat {
                 foreignKey = @ForeignKey(name = "fk_surge_stat_date"))
     private StatDate statDate;
 
-    @Column(name = "period_type", nullable = false, length = 10, 
-            columnDefinition = "VARCHAR(10) COMMENT 'BASE(기준기간) / PREV(비교기간)'")
+    @Column(
+        name = "period_type", 
+        nullable = false, 
+        length = 10, 
+        columnDefinition = "VARCHAR(10) NOT NULL COMMENT 'BASE(기준기간) / PREV(비교기간)'"
+    )
     @Enumerated(EnumType.STRING)
     private PeriodType periodType;
 

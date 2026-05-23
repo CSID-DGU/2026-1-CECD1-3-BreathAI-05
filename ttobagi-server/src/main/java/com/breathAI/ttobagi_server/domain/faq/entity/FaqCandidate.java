@@ -9,6 +9,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.util.List;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -19,33 +23,34 @@ public class FaqCandidate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "candidate_id")
+    @Column(name = "candidate_id", columnDefinition = "BIGINT COMMENT '후보 식별 ID'")
     private Long candidateId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "analysis_id", nullable = false)
+    @JoinColumn(name = "analysis_id", nullable = false, foreignKey = @ForeignKey(name = "fk_candidate_analysis_id"))
     private AnalysisJob analysisJob;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cluster_id")
+    @JoinColumn(name = "cluster_id", foreignKey = @ForeignKey(name = "fk_candidate_cluster_id"))
     private Cluster cluster;
 
-    @Column(name = "candidate_type", nullable = false, length = 20)
+    @Column(name = "candidate_type", nullable = false, length = 20, columnDefinition = "VARCHAR(20) COMMENT '신규(NEW) 또는 확장(EXPAND)'")
     @Enumerated(EnumType.STRING)
     private CandidateType candidateType;
 
-    @Column(name = "standard_question", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "standard_question", nullable = false, columnDefinition = "TEXT COMMENT '생성된 표준 질문'")
     private String standardQuestion;
 
-    @Column(name = "answer_draft", columnDefinition = "TEXT")
+    @Column(name = "answer_draft", columnDefinition = "TEXT COMMENT '생성된 답변 초안'")
     private String answerDraft;
 
-    @Column(name = "review_status", nullable = false, length = 20)
+    @Column(name = "review_status", nullable = false, length = 20, 
+            columnDefinition = "VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING, ACCEPTED, REJECTED, APPLIED'")
     @Enumerated(EnumType.STRING)
     private ReviewStatus reviewStatus;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reviewed_by")
+    @JoinColumn(name = "reviewed_by", foreignKey = @ForeignKey(name = "fk_candidate_user_id"))
     private User reviewedBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -54,19 +59,16 @@ public class FaqCandidate {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "occurrence_count")
+    @Column(name = "occurrence_count", columnDefinition = "INT DEFAULT 0 COMMENT '유사 질문 출현 횟수'")
     private Integer occurrenceCount;
 
-    @Column(name = "representative_keywords", columnDefinition = "JSON")
-    private String representativeKeywords;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "representative_keywords", columnDefinition = "json COMMENT '대표 키워드 배열'")
+    private List<String> representativeKeywords;
 
-    public enum CandidateType {
-        NEW, EXPAND
-    }
+    public enum CandidateType { NEW, EXPAND }
 
-    public enum ReviewStatus {
-        PENDING, ACCEPTED, REJECTED
-    }
+    public enum ReviewStatus { PENDING, ACCEPTED, REJECTED, APPLIED }
 
     @PrePersist
     protected void onCreate() {
@@ -83,16 +85,17 @@ public class FaqCandidate {
     @Builder
     public FaqCandidate(AnalysisJob analysisJob, Cluster cluster, 
                         CandidateType candidateType, String standardQuestion,
-                        String answerDraft, Integer occurrenceCount, String representativeKeywords) {
+                        String answerDraft, Integer occurrenceCount, 
+                        List<String> representativeKeywords) { 
         this.analysisJob = analysisJob;
         this.cluster = cluster;
         this.candidateType = candidateType;
         this.standardQuestion = standardQuestion;
         this.answerDraft = answerDraft;
         this.occurrenceCount = occurrenceCount;
-        this.representativeKeywords = representativeKeywords;
+        this.representativeKeywords = representativeKeywords; 
         this.reviewStatus = ReviewStatus.PENDING;
-    }
+}
 
     public void accept(User reviewer) {
         validatePendingStatus();
@@ -107,9 +110,19 @@ public class FaqCandidate {
     }
 
     private void validatePendingStatus() {
-        if (this.reviewStatus != ReviewStatus.PENDING) {
-            throw new IllegalStateException("이미 검토 완료된 항목입니다.");
+        if (this.reviewStatus == ReviewStatus.APPLIED) {
+            throw new IllegalStateException("이미 챗봇에 반영된 항목은 수정할 수 없습니다.");
         }
+        if (this.reviewStatus != ReviewStatus.PENDING) {
+            throw new IllegalStateException("이미 검토 완료된 항목입니다. 현재 상태: " + this.reviewStatus);
+        }
+    }
+
+    public void apply() {
+        if (this.reviewStatus != ReviewStatus.ACCEPTED) {
+            throw new IllegalStateException("승인(ACCEPTED) 상태인 항목만 적용할 수 있습니다.");
+        }
+        this.reviewStatus = ReviewStatus.APPLIED;
     }
 
 }
