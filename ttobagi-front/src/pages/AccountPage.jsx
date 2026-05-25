@@ -23,11 +23,16 @@ export default function AccountPage({ user, onLogout }) {
       return;
     }
     setLoading(true);
-    await authApi.updateMe({ password: pw.next });
+    const token = localStorage.getItem("token");
+    const res = await authApi.updateMe({ currentPassword: pw.current, newPassword: pw.next }, token);
     setLoading(false);
-    setPwMsg("ok:비밀번호가 변경되었습니다.");
-    setPw({ current: "", next: "", confirm: "" });
-    setTimeout(() => setPwMsg(""), 3000);
+    if (res.success) {
+      setPwMsg("ok:비밀번호가 변경되었습니다.");
+      setPw({ current: "", next: "", confirm: "" });
+      setTimeout(() => setPwMsg(""), 3000);
+    } else {
+      setPwMsg("error:비밀번호 변경에 실패했습니다.");
+    }
   };
 
   const isError = pwMsg.startsWith("error:");

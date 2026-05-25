@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { dashApi } from "../api/index.js";
+import { useState, useEffect } from "react";
+import { dashApi, faqApi } from "../api/index.js";
 
 export default function AnalyzePage() {
-  const [tab, setTab]               = useState("upload"); // upload | visual | recommend
+  const [tab, setTab]               = useState("upload");
   const [file, setFile]             = useState(null);
   const [drag, setDrag]             = useState(false);
   const [uploading, setUploading]   = useState(false);
@@ -11,8 +11,16 @@ export default function AnalyzePage() {
   const [step, setStep]             = useState(-1);
   const [done, setDone]             = useState(false);
   const [candidates, setCandidates] = useState([]);
+  const [history, setHistory]       = useState([]);
 
   const STEPS = ["데이터 전처리", "문장 임베딩", "군집화 (HDBSCAN)", "FAQ 초안 생성", "검증 완료"];
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    dashApi.getAnalysisHistory(0, 10, token).then((r) => {
+      if (r.data?.history) setHistory(r.data.history);
+    });
+  }, []);
 
   const handleFile = (f) => {
     if (!f.name.endsWith(".xlsx")) { alert(".xlsx 파일만 업로드 가능합니다."); return; }
@@ -21,36 +29,75 @@ export default function AnalyzePage() {
 
   const doUpload = async () => {
     if (!file) return;
+    const token = localStorage.getItem("token");
     setUploading(true);
-    const res = await dashApi.uploadExcel(file);
-    setUploading(false);
-    if (res.success) setUploadResult(res.data);
-  };
-
-  const doAnalysis = async () => {
-    if (!uploadResult) return;
     setRunning(true);
     setDone(false);
     setStep(-1);
-    for (let i = 0; i < STEPS.length; i++) {
-      await new Promise((r) => setTimeout(r, 700));
-      setStep(i);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await dashApi.uploadAndAnalyze(formData, token);
+      setUploading(false);
+
+      if (res.success && res.data?.analysisId) {
+        setUploadResult(res.data);
+        const analysisId = res.data.analysisId;
+
+        dashApi.streamAnalysisStatus(
+          analysisId,
+          token,
+          (data) => {
+            const parsed = JSON.parse(data);
+            const status = parsed.status;
+            if (status === "PREPROCESSING") setStep(0);
+            if (status === "ANALYZING")     setStep(2);
+            if (status === "COMPLETED") {
+              setStep(4);
+              setDone(true);
+              setRunning(false);
+              faqApi.getCandidates(analysisId, token).then((r) => {
+                if (r.data?.candidates) setCandidates(r.data.candidates);
+              });
+            }
+            if (status === "FAIL") {
+              setRunning(false);
+              alert("분석에 실패했습니다.");
+            }
+          },
+          () => {
+            const poll = setInterval(async () => {
+              const statusRes = await dashApi.getAnalysisStatus(analysisId, token);
+              const status = statusRes.data?.status;
+              if (status === "COMPLETED") {
+                clearInterval(poll);
+                setStep(4);
+                setDone(true);
+                setRunning(false);
+                const r = await faqApi.getCandidates(analysisId, token);
+                if (r.data?.candidates) setCandidates(r.data.candidates);
+              }
+              if (status === "FAIL") {
+                clearInterval(poll);
+                setRunning(false);
+                alert("분석에 실패했습니다.");
+              }
+            }, 3000);
+          }
+        );
+      }
+    } catch {
+      setUploading(false);
+      setRunning(false);
+      alert("업로드에 실패했습니다.");
     }
-    await new Promise((r) => setTimeout(r, 500));
-    setDone(true);
-    setRunning(false);
-    // mock FAQ 후보 세팅
-    setCandidates([
-      { id: "c1", question: "열차 내 냉난방 온도 조절 요청", answer: "열차 내 온도는 혼잡도에 따라 자동 조절되나, 불편 시 열차번호와 함께 민원을 접수해 주시면 즉시 조치하겠습니다.", synonyms: ["에어컨","에어콘","덥다","냉방조절"], gain: 18.4, count: 412, status: "pending" },
-      { id: "c2", question: "에스컬레이터 고장 신고", answer: "시설물 고장 신고는 역무원에게 직접 전달하시거나, 고객센터(1577-1234)로 신고 부탁드립니다.", synonyms: ["에스컬레이터","엘리베이터","고장"], gain: 12.1, count: 271, status: "pending" },
-      { id: "c3", question: "수유실 위치 안내", answer: "수유실은 서울역, 강남역, 잠실역 등 주요 역사에 설치되어 있습니다.", synonyms: ["수유실","수유칸","유아","아기"], gain: 8.7, count: 134, status: "pending" },
-    ]);
-    setTab("recommend");
   };
 
   const handleCandidate = (id, action) => {
     setCandidates((prev) =>
-      prev.map((c) => c.id === id ? { ...c, status: action } : c)
+      prev.map((c) => c.candidateId === id ? { ...c, reviewStatus: action } : c)
     );
   };
 
@@ -64,7 +111,7 @@ export default function AnalyzePage() {
         {[
           { key: "upload",    label: "① 업로드 · 분석" },
           { key: "visual",    label: "② 시각화 · 비교" },
-          { key: "recommend", label: `③ FAQ 추천 ${candidates.length > 0 ? `(${candidates.filter(c => c.status === "pending").length})` : ""}` },
+          { key: "recommend", label: `③ FAQ 추천 ${candidates.length > 0 ? `(${candidates.filter(c => c.reviewStatus === "PENDING").length})` : ""}` },
         ].map((t) => (
           <div key={t.key} style={{ ...S.tab, ...(tab === t.key ? S.tabActive : {}) }}
             onClick={() => setTab(t.key)}>{t.label}</div>
@@ -107,8 +154,7 @@ export default function AnalyzePage() {
 
                 {uploadResult && (
                   <div style={S.successBox}>
-                    📊 총 <strong>{uploadResult.totalRows.toLocaleString()}건</strong> 적재 완료
-                    &nbsp;(중복 제거: {uploadResult.totalRows - uploadResult.insertedRows}건)
+                    📊 파일 업로드 완료! AI 분석을 시작합니다.
                   </div>
                 )}
               </div>
@@ -124,11 +170,10 @@ export default function AnalyzePage() {
                 {!running && !done && (
                   <>
                     <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
-                      전처리 → 임베딩 → 군집화 → FAQ 생성 → 검증 순으로 진행됩니다.
+                      파일 업로드 시 자동으로 분석이 시작됩니다.
                     </p>
-                    <button style={{ ...S.btnPrimary, opacity: !uploadResult ? 0.5 : 1 }}
-                      onClick={doAnalysis} disabled={!uploadResult}>
-                      분석 시작
+                    <button style={{ ...S.btnPrimary, opacity: 0.5 }} disabled>
+                      업로드 후 자동 시작
                     </button>
                   </>
                 )}
@@ -170,24 +215,23 @@ export default function AnalyzePage() {
           <div style={S.card}>
             <div style={S.cardHeader}><span style={S.cardTitle}>분석 이력</span></div>
             <div style={{ padding: 0 }}>
-              {[
-                { id: 1, status: "COMPLETED", fileName: "unanswered_log_202604.xlsx", rows: 8166, date: "2026-04-19" },
-                { id: 2, status: "COMPLETED", fileName: "unanswered_log_202603.xlsx", rows: 7923, date: "2026-03-12" },
-                { id: 3, status: "FAIL",      fileName: "unanswered_log_202602.xlsx", rows: 5210, date: "2026-02-08" },
-                ].map((r, i) => (
-                <div key={i} style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6", fontSize: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontFamily: "monospace", color: "#374151" }}>analysis_id: {r.id}</span>
-                   <span style={{
+              {history.length === 0
+                ? <div style={{ padding: 16, fontSize: 12, color: "#9CA3AF" }}>이력 없음</div>
+                : history.map((r, i) => (
+                  <div key={i} style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6", fontSize: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontFamily: "monospace", color: "#374151" }}>#{r.analysisId}</span>
+                      <span style={{
                         fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 10,
-                     background: r.status === "COMPLETED" ? "#D1FAE5" : "#FDECEA",
-                      color: r.status === "COMPLETED" ? "#065F46" : "#B91C1C",
-                    }}>{r.status}</span>
-    </div>
-    <div style={{ color: "#6B7280" }}>{r.fileName}</div>
-    <div style={{ color: "#9CA3AF", marginTop: 2 }}>{r.rows.toLocaleString()}건 · {r.date}</div>
-  </div>
-))}
+                        background: r.status === "COMPLETED" ? "#D1FAE5" : "#FDECEA",
+                        color: r.status === "COMPLETED" ? "#065F46" : "#B91C1C",
+                      }}>{r.status}</span>
+                    </div>
+                    <div style={{ color: "#6B7280" }}>{r.fileName}</div>
+                    <div style={{ color: "#9CA3AF", marginTop: 2 }}>{r.period}</div>
+                  </div>
+                ))
+              }
             </div>
           </div>
         </div>
@@ -196,7 +240,6 @@ export default function AnalyzePage() {
       {/* ── 탭 2: 시각화 ── */}
       {tab === "visual" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {/* 기존 vs 신규 비교 */}
           <div style={S.card}>
             <div style={S.cardHeader}><span style={S.cardTitle}>응답 유형 비교</span></div>
             <div style={S.cardBody}>
@@ -219,22 +262,17 @@ export default function AnalyzePage() {
                   </div>
                 </div>
               ))}
-              <div style={{ padding: "12px 14px", background: "#EFF8FF", borderRadius: 8, fontSize: 13 }}>
-                미답변율 <strong style={{ color: "#1565C0" }}>29% → 26.6%</strong> 로 개선 예상
-              </div>
             </div>
           </div>
 
-          {/* 예상 효과 */}
           <div style={S.card}>
             <div style={S.cardHeader}><span style={S.cardTitle}>분석 결과 요약</span></div>
             <div style={S.cardBody}>
               {[
-                { label: "총 미답변 로그",    value: "8,166건",  color: "#111827" },
-                { label: "예상 해소 건수",    value: "1,200건",  color: "#43A047" },
-                { label: "예상 해소율",       value: "14.7%",   color: "#43A047" },
-                { label: "예상 정확도 향상",  value: "+12.4%",  color: "#1565C0" },
-                { label: "FAQ 후보 생성 수",  value: "38개",    color: "#1565C0" },
+                { label: "총 미답변 로그",   value: "8,166건", color: "#111827" },
+                { label: "예상 해소 건수",   value: "1,200건", color: "#43A047" },
+                { label: "예상 정확도 향상", value: "+12.4%",  color: "#1565C0" },
+                { label: "FAQ 후보 생성 수", value: `${candidates.length}개`, color: "#1565C0" },
               ].map((r) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
                   <span style={{ color: "#6B7280" }}>{r.label}</span>
@@ -256,47 +294,45 @@ export default function AnalyzePage() {
             </div>
           ) : (
             candidates.map((c) => (
-              <div key={c.id} style={{ ...S.card, marginBottom: 12, padding: 18 }}>
+              <div key={c.candidateId} style={{ ...S.card, marginBottom: 12, padding: 18 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>{c.question}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>{c.standardQuestion}</div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
-                      <span style={{ color: "#43A047", fontWeight: 600 }}>↑ {c.gain}% 정확도 향상</span>
-                      <span style={{ color: "#9CA3AF" }}>매칭 {c.count}건</span>
+                      <span style={{ color: "#9CA3AF" }}>매칭 {c.occurrenceCount}건</span>
                     </div>
                   </div>
-                  {c.status === "pending" ? (
+                  {c.reviewStatus === "PENDING" ? (
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button style={S.btnAccept} onClick={() => handleCandidate(c.id, "accepted")}>✓ 승인</button>
-                      <button style={S.btnReject} onClick={() => handleCandidate(c.id, "rejected")}>✗ 반려</button>
+                      <button style={S.btnAccept} onClick={() => handleCandidate(c.candidateId, "ACCEPTED")}>✓ 승인</button>
+                      <button style={S.btnReject} onClick={() => handleCandidate(c.candidateId, "REJECTED")}>✗ 반려</button>
                     </div>
                   ) : (
                     <span style={{
                       fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 20,
-                      background: c.status === "accepted" ? "#D1FAE5" : "#FDECEA",
-                      color: c.status === "accepted" ? "#065F46" : "#B91C1C",
+                      background: c.reviewStatus === "ACCEPTED" ? "#D1FAE5" : "#FDECEA",
+                      color: c.reviewStatus === "ACCEPTED" ? "#065F46" : "#B91C1C",
                     }}>
-                      {c.status === "accepted" ? "✅ 승인됨" : "❌ 반려됨"}
+                      {c.reviewStatus === "ACCEPTED" ? "✅ 승인됨" : "❌ 반려됨"}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.6, marginBottom: 10 }}>{c.answer}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.6, marginBottom: 10 }}>{c.answerDraft}</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {c.synonyms.map((s) => (
-                     <span key={s.synonymId} style={{
-                        fontSize: 11, padding: "2px 8px",
-                        background: s.type === "TYPO" ? "#FEF3C7" : "#EFF8FF",
-                        color: s.type === "TYPO" ? "#92400E" : "#1565C0",
-                        borderRadius: 12,
-                        border: `1px solid ${s.type === "TYPO" ? "#FDE68A" : "#BFDBFE"}`,
-                        marginRight: 4, marginBottom: 4,
-                        }}>
-                            {s.text}
-                            <span style={{ fontSize: 9, marginLeft: 3, opacity: 0.6 }}>
-                                {s.type === "TYPO" ? "오타" : s.type === "ABBR" ? "약어" : "유사어"}
-                        </span>
+                  {(c.synonyms || []).map((s, i) => (
+                    <span key={i} style={{
+                      fontSize: 11, padding: "2px 8px",
+                      background: s.type === "TYPO" ? "#FEF3C7" : "#EFF8FF",
+                      color: s.type === "TYPO" ? "#92400E" : "#1565C0",
+                      borderRadius: 12,
+                      border: `1px solid ${s.type === "TYPO" ? "#FDE68A" : "#BFDBFE"}`,
+                    }}>
+                      {s.text}
+                      <span style={{ fontSize: 9, marginLeft: 3, opacity: 0.6 }}>
+                        {s.type === "TYPO" ? "오타" : s.type === "ABBR" ? "약어" : "유사어"}
+                      </span>
                     </span>
-                    ))}
+                  ))}
                 </div>
               </div>
             ))

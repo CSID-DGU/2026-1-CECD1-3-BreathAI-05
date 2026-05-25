@@ -12,13 +12,20 @@ export default function LoginPage({ onLogin, setPage }) {
     if (!email || !pw) { setError("이메일과 비밀번호를 입력해주세요."); return; }
     setLoading(true);
     setError("");
-    const res = await authApi.login(email, pw);
-    setLoading(false);
-    if (res.success) {
-      localStorage.setItem("token", res.data.accessToken);
-      onLogin(res.data.user);
-    } else {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+    try {
+      const res = await authApi.login(email, pw);
+      if (res.success && res.data?.accessToken) {
+        localStorage.setItem("token", res.data.accessToken);
+        localStorage.setItem("refreshToken", res.data.refreshToken);
+        const meRes = await authApi.getMe(res.data.accessToken);
+        onLogin(meRes.data);
+      } else {
+        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      }
+    } catch {
+      setError("서버 연결에 실패했습니다.");
+    } finally {
+      setLoading(false);
     }
   };
 

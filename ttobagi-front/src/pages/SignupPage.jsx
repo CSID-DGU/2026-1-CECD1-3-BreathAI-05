@@ -13,10 +13,19 @@ export default function SignupPage({ setPage }) {
     if (pw !== confirm) { setMsg("error:비밀번호가 일치하지 않습니다."); return; }
     if (pw.length < 8)  { setMsg("error:비밀번호는 8자 이상이어야 합니다."); return; }
     setLoading(true);
-    await authApi.signup(email, pw);
-    setLoading(false);
-    setMsg("ok:가입 완료! 로그인 해주세요.");
-    setTimeout(() => setPage("login"), 1800);
+    try {
+      const res = await authApi.signup(email, pw);
+      if (res.success) {
+        setMsg("ok:가입 완료! 로그인 해주세요.");
+        setTimeout(() => setPage("login"), 1800);
+      } else {
+        setMsg("error:이미 사용 중인 이메일입니다.");
+      }
+    } catch {
+      setMsg("error:회원가입에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isError = msg.startsWith("error:");

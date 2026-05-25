@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { faqApi } from "../api/index.js";
+import { faqApi, dashApi } from "../api/index.js";
 
 export default function FaqPage() {
   const [tab, setTab]               = useState("list");
@@ -8,43 +8,74 @@ export default function FaqPage() {
   const [search, setSearch]         = useState("");
   const [loading, setLoading]       = useState(true);
   const [modal, setModal]           = useState(null);
+  const [latestAnalysisId, setLatestAnalysisId] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      faqApi.getList(),
-      faqApi.getCandidates("analysis_001"),
-    ]).then(([listRes, candRes]) => {
-      setFaqs(listRes.data.faqs);
-      setCandidates(candRes.data.candidates);
-      setLoading(false);
-    });
+    const token = localStorage.getItem("token");
+
+    // 최신 analysisId 먼저 가져오기
+    dashApi.getAnalysisHistory(0, 1, token).then((histRes) => {
+      const latestId = histRes.data?.history?.[0]?.analysisId || null;
+      setLatestAnalysisId(latestId);
+
+      const requests = [faqApi.getList(0, 50, token)];
+      if (latestId) requests.push(faqApi.getCandidates(latestId, token));
+
+      Promise.all(requests).then(([listRes, candRes]) => {
+        setFaqs(listRes.data?.faqs || []);
+        setCandidates(candRes?.data?.candidates || []);
+        setLoading(false);
+      });
+    }).catch(() => setLoading(false));
   }, []);
 
-  const handleReview = (candidateId, action) => {
+  const handleReview = async (candidateId, action) => {
+    const token = localStorage.getItem("token");
+    const c = candidates.find((x) => x.candidateId === candidateId);
+    if (!c) return;
+
+    // 실제 API 호출
+    await faqApi.apply({ candidateId, action }, token);
+
     setCandidates((prev) =>
-      prev.map((c) =>
-        c.candidateId === candidateId
-          ? { ...c, reviewStatus: action === "ACCEPT" ? "ACCEPTED" : "REJECTED" }
-          : c
+      prev.map((x) =>
+        x.candidateId === candidateId
+          ? { ...x, reviewStatus: action === "ACCEPT" ? "ACCEPTED" : "REJECTED" }
+          : x
       )
     );
+
     if (action === "ACCEPT") {
-      const c = candidates.find((x) => x.candidateId === candidateId);
-      if (c) {
-        setFaqs((prev) => [...prev, {
-          faqId: `new_${candidateId}`,
-          question: c.standardQuestion,
-          answer: c.answerDraft,
-          keywords: c.synonyms.map((s) => s.text),
-          qaCnt: 0,
-        }]);
-      }
+      setFaqs((prev) => [...prev, {
+        faqId: `new_${candidateId}`,
+        question: c.standardQuestion,
+        answer: c.answerDraft,
+        keywords: c.synonyms?.map((s) => s.text) || [],
+        qaCnt: 0,
+      }]);
     }
   };
 
+  const handleUpdate = async (faq) => {
+    const token = localStorage.getItem("token");
+    await faqApi.update(faq.faqId, {
+      question: faq.question,
+      answer: faq.answer,
+      keywords: faq.keywords,
+    }, token);
+    setFaqs((prev) => prev.map((f) => f.faqId === faq.faqId ? faq : f));
+    setModal(null);
+  };
+
+  const handleDelete = async (faqId) => {
+    const token = localStorage.getItem("token");
+    await faqApi.remove(faqId, token);
+    setFaqs((prev) => prev.filter((f) => f.faqId !== faqId));
+  };
+
   const filteredFaqs = faqs.filter((f) =>
-    f.question.includes(search) ||
-    f.answer.includes(search) ||
+    f.question?.includes(search) ||
+    f.answer?.includes(search) ||
     f.keywords?.some((k) => k.includes(search))
   );
 
@@ -57,7 +88,6 @@ export default function FaqPage() {
       <div style={S.pageTitle}>FAQ 후보 관리</div>
       <div style={S.pageSub}>현재 등록된 FAQ를 확인하고 AI 추천 후보를 검토합니다.</div>
 
-      {/* 탭 */}
       <div style={S.tabs}>
         {[
           { key: "list",      label: `FAQ 리스트 (${faqs.length})` },
@@ -97,7 +127,7 @@ export default function FaqPage() {
                     {f.qaCnt > 0 && <span style={S.qaCnt}>누적 {f.qaCnt.toLocaleString()}건</span>}
                     <div style={{ display: "flex", gap: 6 }}>
                       <button style={S.btnSm} onClick={() => setModal({ type: "edit", data: f })}>수정</button>
-                      <button style={S.btnSmDanger} onClick={() => setFaqs((prev) => prev.filter((x) => x.faqId !== f.faqId))}>삭제</button>
+                      <button style={S.btnSmDanger} onClick={() => handleDelete(f.faqId)}>삭제</button>
                     </div>
                   </div>
                 </div>
@@ -132,7 +162,6 @@ export default function FaqPage() {
                       }}>
                         {c.candidateType === "NEW" ? "신규 FAQ" : "키워드 확장"}
                       </span>
-                      <span style={{ fontSize: 12, color: "#43A047", fontWeight: 600 }}>↑ {c.accuracyGain}% 정확도 향상</span>
                       <span style={{ fontSize: 11, color: "#9CA3AF" }}>매칭 {c.occurrenceCount}건</span>
                     </div>
                     <div style={S.faqQ}>{c.standardQuestion}</div>
@@ -159,15 +188,15 @@ export default function FaqPage() {
 
                 <div style={{ marginTop: 8, marginBottom: 4, fontSize: 11, color: "#6B7280" }}>대표 키워드</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-                  {c.representativeKeywords.map((k) => (
+                  {c.representativeKeywords?.map((k) => (
                     <span key={k} style={{ ...S.tag, background: "#EEF2FF", color: "#4338CA", borderColor: "#C7D2FE" }}>{k}</span>
                   ))}
                 </div>
 
                 <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>유사어 / 오타</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {c.synonyms.map((s) => (
-                    <span key={s.synonymId} style={{
+                  {c.synonyms?.map((s, i) => (
+                    <span key={i} style={{
                       fontSize: 11, padding: "2px 8px", borderRadius: 12,
                       background: s.type === "TYPO" ? "#FEF3C7" : s.type === "ABBR" ? "#F0FDF4" : "#EFF8FF",
                       color: s.type === "TYPO" ? "#92400E" : s.type === "ABBR" ? "#166534" : "#1565C0",
@@ -179,13 +208,6 @@ export default function FaqPage() {
                       </span>
                     </span>
                   ))}
-                </div>
-
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: "#6B7280" }}>신뢰도 {(c.matchScore * 100).toFixed(0)}%</span>
-                  <div style={{ flex: 1, height: 4, background: "#F3F4F6", borderRadius: 2 }}>
-                    <div style={{ width: `${c.matchScore * 100}%`, height: "100%", background: "#1565C0", borderRadius: 2 }} />
-                  </div>
                 </div>
               </div>
             ))
@@ -210,8 +232,8 @@ export default function FaqPage() {
               <div>
                 <div style={S.modalLabel}>유사어</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
-                  {modal.data.synonyms.map((s) => (
-                    <span key={s.synonymId} style={{
+                  {modal.data.synonyms?.map((s, i) => (
+                    <span key={i} style={{
                       fontSize: 11, padding: "2px 8px", borderRadius: 12,
                       background: s.type === "TYPO" ? "#FEF3C7" : "#EFF8FF",
                       color: s.type === "TYPO" ? "#92400E" : "#1565C0",
@@ -227,16 +249,8 @@ export default function FaqPage() {
               </div>
               <div style={{ display: "flex", gap: 20 }}>
                 <div>
-                  <div style={S.modalLabel}>정확도 향상</div>
-                  <div style={{ color: "#43A047", fontWeight: 700, fontSize: 16 }}>+{modal.data.accuracyGain}%</div>
-                </div>
-                <div>
                   <div style={S.modalLabel}>매칭 건수</div>
                   <div style={{ fontWeight: 600, fontSize: 16 }}>{modal.data.occurrenceCount}건</div>
-                </div>
-                <div>
-                  <div style={S.modalLabel}>신뢰도</div>
-                  <div style={{ fontWeight: 600, fontSize: 16 }}>{(modal.data.matchScore * 100).toFixed(0)}%</div>
                 </div>
               </div>
             </div>
@@ -254,12 +268,7 @@ export default function FaqPage() {
         <div style={S.modalBg} onClick={() => setModal(null)}>
           <div style={S.modal} onClick={(e) => e.stopPropagation()}>
             <div style={S.modalTitle}>FAQ 수정</div>
-            <EditFaqForm faq={modal.data}
-              onSave={(updated) => {
-                setFaqs((prev) => prev.map((f) => f.faqId === updated.faqId ? updated : f));
-                setModal(null);
-              }}
-              onClose={() => setModal(null)} />
+            <EditFaqForm faq={modal.data} onSave={handleUpdate} onClose={() => setModal(null)} />
           </div>
         </div>
       )}
