@@ -478,32 +478,36 @@ public class DashboardService {
 
         // COMPLETED: 전체 데이터 적재
         // 1. 사용량 통계 적재
-        if (request.getUsageStats() != null) {
-            for (AnalysisCallbackRequest.UsageStatResult usageStat : request.getUsageStats()) {
-                LocalDate statDate = LocalDate.parse(usageStat.getStatDate());
-
-                StatDate statDateEntity = statDateRepository.findById(statDate)
-                        .orElseGet(() -> statDateRepository.save(
-                                StatDate.builder().statDate(statDate).build()));
-
-                UsageStat usageStatEntity = usageStatRepository
-                        .findByStatDate_StatDate(statDate)
-                        .orElse(UsageStat.builder()
-                                .statDate(statDateEntity)
-                                .totalCnt(0)
-                                .answerCnt(0)
-                                .lowQualityCount(0)
-                                .unanswerCnt(0)
-                                .build());
-
-                usageStatEntity.update(
-                        usageStat.getTotalCnt(),
-                        usageStat.getAnswerCnt(),
-                        usageStat.getLowQualityCount(),
-                        usageStat.getUnanswerCnt());
-                usageStatRepository.save(usageStatEntity);
+        if (request.getTrend() != null) {
+                for (AnalysisCallbackRequest.TrendItemResult trendItem : request.getTrend()) {
+                    String[] parts = trendItem.getDate().split("-");
+                    LocalDate statDate = LocalDate.of(
+                            LocalDate.now().getYear(),
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1]));
+            
+                    StatDate statDateEntity = statDateRepository.findById(statDate)
+                            .orElseGet(() -> statDateRepository.save(
+                                    StatDate.builder().statDate(statDate).build()));
+            
+                    UsageStat usageStatEntity = usageStatRepository
+                            .findByStatDate_StatDate(statDate)
+                            .orElse(UsageStat.builder()
+                                    .statDate(statDateEntity)
+                                    .totalCnt(0)
+                                    .answerCnt(0)
+                                    .lowQualityCount(0)
+                                    .unanswerCnt(0)
+                                    .build());
+            
+                    usageStatEntity.update(
+                            0,
+                            0,
+                            trendItem.getLowQualityCount() != null ? trendItem.getLowQualityCount() : 0,
+                            trendItem.getUnanswerCount() != null ? trendItem.getUnanswerCount() : 0);
+                    usageStatRepository.save(usageStatEntity);
+                }
             }
-        }
 
         // 2. 클러스터링 결과 적재
         if (request.getClusteringView() != null && request.getClusteringView().getClusterNames() != null) {
