@@ -45,8 +45,8 @@ export const authApi = {
     fetchApi("POST", "/api/v1/auth/reissue", { refreshToken }),
 
   // PATCH /api/v1/auth/promote
-  promote: (email, adminCode) =>
-    fetchApi("PATCH", "/api/v1/auth/promote", { email, adminCode }),
+  promote: (email, adminCode, token) =>
+  fetchApi("PATCH", "/api/v1/auth/promote", { email, adminCode }, token),
 };
 
 // ── 대시보드 ──────────────────────────────────────────────

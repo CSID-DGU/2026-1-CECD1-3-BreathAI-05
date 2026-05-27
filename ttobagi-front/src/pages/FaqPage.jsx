@@ -22,7 +22,7 @@ export default function FaqPage() {
       if (latestId) requests.push(faqApi.getCandidates(latestId, token));
 
       Promise.all(requests).then(([listRes, candRes]) => {
-        setFaqs(listRes.data?.faqs || []);
+        setFaqs(listRes.data?.faqList || []);
         setCandidates(candRes?.data?.recommendations || []);
         setLoading(false);
       });
@@ -34,8 +34,27 @@ export default function FaqPage() {
     const c = candidates.find((x) => x.candidateId === candidateId);
     if (!c) return;
 
-    // 실제 API 호출
-    await faqApi.apply({ candidateId, action }, token);
+    if (action === "ACCEPT") {
+      if (!c.standardQuestion) {
+        alert("표준 질문이 없는 후보는 승인할 수 없습니다.");
+        return;
+      }
+      const applyRes = await faqApi.apply({
+        analysisId: latestAnalysisId,
+        clusterId: c.clusterId,
+        clusterLabel: c.clusterLabel,
+        candidateId: c.candidateId,
+        finalQuestion: c.standardQuestion,
+        finalAnswer: c.answerDraft,
+        keywords: c.representativeKeywords || [],
+        isManualPatchConfirmed: false,
+      }, token);
+
+      if (applyRes.success) {
+        const listRes = await faqApi.getList(0, 50, token);
+        setFaqs(listRes.data?.faqList || []);
+      }
+    }
 
     setCandidates((prev) =>
       prev.map((x) =>
@@ -44,16 +63,6 @@ export default function FaqPage() {
           : x
       )
     );
-
-    if (action === "ACCEPT") {
-      setFaqs((prev) => [...prev, {
-        faqId: `new_${candidateId}`,
-        question: c.standardQuestion,
-        answer: c.answerDraft,
-        keywords: c.synonyms?.map((s) => s.text) || [],
-        qaCnt: 0,
-      }]);
-    }
   };
 
   const handleUpdate = async (faq) => {

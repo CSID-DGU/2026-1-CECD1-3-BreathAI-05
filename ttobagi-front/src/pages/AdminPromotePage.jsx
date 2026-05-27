@@ -14,7 +14,8 @@ export default function AdminPromotePage({ setPage }) {
     setError("");
     setSuccess("");
     try {
-      const res = await authApi.promote(email, adminCode);
+      const token = localStorage.getItem("token");
+      const res = await authApi.promote(email, adminCode, token);
       if (res.success) {
         setSuccess("관리자 권한이 성공적으로 부여되었습니다.");
         setEmail("");
