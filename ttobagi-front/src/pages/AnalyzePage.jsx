@@ -59,11 +59,25 @@ export default function AnalyzePage() {
   const STEPS = ["데이터 전처리", "문장 임베딩", "군집화 (HDBSCAN)", "FAQ 초안 생성", "검증 완료"];
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    dashApi.getAnalysisHistory(0, 10, token).then((r) => {
-      if (r.data?.history) setHistory(r.data.history);
-    });
-  }, []);
+  const token = localStorage.getItem("token");
+  dashApi.getAnalysisHistory(0, 1, token).then((r) => {
+    if (r.data?.history) {
+      setHistory(r.data.history);
+      // 최신 분석이 COMPLETED면 FAQ 후보 자동 로드
+      const latest = r.data.history[0];
+      if (latest?.status === "COMPLETED" && latest?.analysisId) {
+        faqApi.getCandidates(latest.analysisId, token).then((res) => {
+          if (res.data?.recommendations) setCandidates(res.data.recommendations);
+        });
+        dashApi.getFileAnalyzeResult(latest.analysisId, token).then((res) => {
+          if (res.data) setAnalyzeResult(res.data);
+        });
+        setDone(true);
+        setStep(4);
+      }
+    }
+  });
+}, []);
 
   const handleFile = (f) => {
     if (!f.name.endsWith(".xlsx")) { alert(".xlsx 파일만 업로드 가능합니다."); return; }

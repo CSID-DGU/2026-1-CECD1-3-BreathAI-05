@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
     Promise.all([
       dashApi.getUsage(year, month, token),
-      dashApi.getAnalyzeResult(null, null, token),
+      dashApi.getAnalyzeResult("", "", token),
     ]).then(([usageRes, analyzeRes]) => {
       if (usageRes.data)   setUsage(usageRes.data);
       if (analyzeRes.data) setAnalyze(analyzeRes.data);
