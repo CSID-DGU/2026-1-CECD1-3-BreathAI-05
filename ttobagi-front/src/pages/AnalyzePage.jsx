@@ -1,5 +1,47 @@
 import { useState, useEffect } from "react";
 import { dashApi, faqApi } from "../api/index.js";
+import { ScatterChart, Scatter, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from "recharts";
+
+const CLUSTER_COLORS = [
+  "#1565C0","#43A047","#E53935","#FB8C00","#8E24AA",
+  "#00838F","#F4511E","#3949AB","#00897B","#C0CA33",
+];
+
+function ClusterScatterPlot({ points, clusterNames }) {
+  const colorMap = {};
+  clusterNames.forEach((c, i) => {
+    colorMap[c.clusterLabel] = CLUSTER_COLORS[i % CLUSTER_COLORS.length];
+  });
+
+  return (
+    <div style={{ width: "100%", height: 400 }}>
+      <ResponsiveContainer>
+        <ScatterChart>
+          <XAxis dataKey="x" type="number" name="X" tick={{ fontSize: 10 }} />
+          <YAxis dataKey="y" type="number" name="Y" tick={{ fontSize: 10 }} />
+          <Tooltip
+            cursor={{ strokeDasharray: "3 3" }}
+            content={({ payload }) => {
+              if (!payload?.length) return null;
+              const d = payload[0]?.payload;
+              return (
+                <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 12px", fontSize: 12, maxWidth: 200 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>클러스터 {d?.clusterLabel}</div>
+                  <div style={{ color: "#6B7280", wordBreak: "break-all" }}>{d?.text?.slice(0, 50)}</div>
+                </div>
+              );
+            }}
+          />
+          <Scatter data={points} isAnimationActive={false}>
+            {points.map((p, i) => (
+              <Cell key={i} fill={colorMap[p.clusterLabel] || "#9CA3AF"} opacity={0.7} />
+            ))}
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 export default function AnalyzePage() {
   const [tab, setTab]               = useState("upload");
@@ -12,6 +54,7 @@ export default function AnalyzePage() {
   const [done, setDone]             = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [history, setHistory]       = useState([]);
+  const [analyzeResult, setAnalyzeResult] = useState(null);
 
   const STEPS = ["데이터 전처리", "문장 임베딩", "군집화 (HDBSCAN)", "FAQ 초안 생성", "검증 완료"];
 
@@ -61,6 +104,9 @@ export default function AnalyzePage() {
               faqApi.getCandidates(analysisId, token).then((r) => {
                 if (r.data?.candidates) setCandidates(r.data.candidates);
               });
+              dashApi.getFileAnalyzeResult(analysisId, token).then((r) => {
+                if (r.data) setAnalyzeResult(r.data);
+              });
             }
             if (status === "FAIL") {
               setRunning(false);
@@ -76,8 +122,12 @@ export default function AnalyzePage() {
                 setStep(4);
                 setDone(true);
                 setRunning(false);
-                const r = await faqApi.getCandidates(analysisId, token);
-                if (r.data?.candidates) setCandidates(r.data.candidates);
+                faqApi.getCandidates(analysisId, token).then((r) => {
+                  if (r.data?.candidates) setCandidates(r.data.candidates);
+                });
+                dashApi.getFileAnalyzeResult(analysisId, token).then((r) => {
+                  if (r.data) setAnalyzeResult(r.data);
+                });
               }
               if (status === "FAIL") {
                 clearInterval(poll);
@@ -122,8 +172,6 @@ export default function AnalyzePage() {
       {tab === "upload" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* 업로드 카드 */}
             <div style={S.card}>
               <div style={S.cardHeader}>
                 <span style={S.cardTitle}>① 신규 로그 엑셀 업로드</span>
@@ -144,14 +192,12 @@ export default function AnalyzePage() {
                   </div>
                   <div style={{ fontSize: 12, color: "#9CA3AF" }}>.xlsx 형식, 최대 50MB</div>
                 </div>
-
                 {file && !uploadResult && (
                   <button style={{ ...S.btnPrimary, marginTop: 12 }}
                     onClick={doUpload} disabled={uploading}>
                     {uploading ? "업로드 중..." : "업로드 시작"}
                   </button>
                 )}
-
                 {uploadResult && (
                   <div style={S.successBox}>
                     📊 파일 업로드 완료! AI 분석을 시작합니다.
@@ -160,7 +206,6 @@ export default function AnalyzePage() {
               </div>
             </div>
 
-            {/* 분석 실행 카드 */}
             <div style={S.card}>
               <div style={S.cardHeader}>
                 <span style={S.cardTitle}>② AI 분석 실행</span>
@@ -177,7 +222,6 @@ export default function AnalyzePage() {
                     </button>
                   </>
                 )}
-
                 {(running || done) && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {STEPS.map((s, i) => {
@@ -211,7 +255,6 @@ export default function AnalyzePage() {
             </div>
           </div>
 
-          {/* 오른쪽 — 분석 이력 */}
           <div style={S.card}>
             <div style={S.cardHeader}><span style={S.cardTitle}>분석 이력</span></div>
             <div style={{ padding: 0 }}>
@@ -239,46 +282,72 @@ export default function AnalyzePage() {
 
       {/* ── 탭 2: 시각화 ── */}
       {tab === "visual" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={S.card}>
-            <div style={S.cardHeader}><span style={S.cardTitle}>응답 유형 비교</span></div>
+            <div style={S.cardHeader}>
+              <span style={S.cardTitle}>클러스터링 시각화 (UMAP)</span>
+            </div>
             <div style={S.cardBody}>
-              {[
-                { label: "기존 데이터", answered: 71, unanswered: 29, color: "#1976D2" },
-                { label: "신규 데이터", answered: 73.4, unanswered: 26.6, color: "#43A047" },
-              ].map((d) => (
-                <div key={d.label} style={{ marginBottom: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ fontWeight: 500 }}>{d.label}</span>
-                    <span style={{ color: d.color, fontWeight: 600 }}>답변율 {d.answered}%</span>
-                  </div>
-                  <div style={{ height: 24, background: "#F3F4F6", borderRadius: 6, overflow: "hidden", display: "flex" }}>
-                    <div style={{ width: `${d.answered}%`, background: d.color, borderRadius: "6px 0 0 6px", transition: "width .6s" }} />
-                    <div style={{ width: `${d.unanswered}%`, background: "#EF9F27" }} />
-                  </div>
-                  <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#6B7280", marginTop: 4 }}>
-                    <span>🔵 답변 {d.answered}%</span>
-                    <span>🟡 미답변 {d.unanswered}%</span>
-                  </div>
+              {!analyzeResult ? (
+                <div style={{ textAlign: "center", color: "#9CA3AF", padding: 40 }}>
+                  분석을 먼저 실행해주세요.
                 </div>
-              ))}
+              ) : (
+                <ClusterScatterPlot
+                  points={analyzeResult.clusteringView?.points || []}
+                  clusterNames={analyzeResult.clusteringView?.clusterNames || []}
+                />
+              )}
             </div>
           </div>
 
-          <div style={S.card}>
-            <div style={S.cardHeader}><span style={S.cardTitle}>분석 결과 요약</span></div>
-            <div style={S.cardBody}>
-              {[
-                { label: "총 미답변 로그",   value: "8,166건", color: "#111827" },
-                { label: "예상 해소 건수",   value: "1,200건", color: "#43A047" },
-                { label: "예상 정확도 향상", value: "+12.4%",  color: "#1565C0" },
-                { label: "FAQ 후보 생성 수", value: `${candidates.length}개`, color: "#1565C0" },
-              ].map((r) => (
-                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
-                  <span style={{ color: "#6B7280" }}>{r.label}</span>
-                  <strong style={{ color: r.color }}>{r.value}</strong>
-                </div>
-              ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={S.card}>
+              <div style={S.cardHeader}><span style={S.cardTitle}>응답 유형 비교</span></div>
+              <div style={S.cardBody}>
+                {analyzeResult ? (() => {
+                  const total = analyzeResult.systemStatus?.totalLogCount || 1;
+                  const correct = analyzeResult.systemStatus?.samplingStatus?.correct || 0;
+                  const unanswered = analyzeResult.systemStatus?.samplingStatus?.unanswered || 0;
+                  const answeredPct = ((correct / total) * 100).toFixed(1);
+                  const unansweredPct = ((unanswered / total) * 100).toFixed(1);
+                  return (
+                    <div>
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                          <span style={{ fontWeight: 500 }}>신규 데이터</span>
+                          <span style={{ color: "#43A047", fontWeight: 600 }}>답변율 {answeredPct}%</span>
+                        </div>
+                        <div style={{ height: 24, background: "#F3F4F6", borderRadius: 6, overflow: "hidden", display: "flex" }}>
+                          <div style={{ width: `${answeredPct}%`, background: "#43A047", borderRadius: "6px 0 0 6px", transition: "width .6s" }} />
+                          <div style={{ width: `${unansweredPct}%`, background: "#EF9F27" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#6B7280", marginTop: 4 }}>
+                          <span>🔵 답변 {answeredPct}%</span>
+                          <span>🟡 미답변 {unansweredPct}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : <div style={{ color: "#9CA3AF", fontSize: 12 }}>데이터 없음</div>}
+              </div>
+            </div>
+
+            <div style={S.card}>
+              <div style={S.cardHeader}><span style={S.cardTitle}>분석 결과 요약</span></div>
+              <div style={S.cardBody}>
+                {[
+                  { label: "총 로그 수", value: `${analyzeResult?.systemStatus?.totalLogCount?.toLocaleString() || 0}건`, color: "#111827" },
+                  { label: "예상 해소 건수", value: `${analyzeResult?.performanceMetrics?.resolvedCountByAI?.toLocaleString() || 0}건`, color: "#43A047" },
+                  { label: "예상 정확도 향상", value: `+${analyzeResult?.performanceMetrics?.predictedAccuracyGain || 0}%`, color: "#1565C0" },
+                  { label: "FAQ 후보 생성 수", value: `${candidates.length}개`, color: "#1565C0" },
+                ].map((r) => (
+                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                    <span style={{ color: "#6B7280" }}>{r.label}</span>
+                    <strong style={{ color: r.color }}>{r.value}</strong>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
