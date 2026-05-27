@@ -23,7 +23,7 @@ export default function FaqPage() {
 
       Promise.all(requests).then(([listRes, candRes]) => {
         setFaqs(listRes.data?.faqs || []);
-        setCandidates(candRes?.data?.candidates || []);
+        setCandidates(candRes?.data?.recommendations || []);
         setLoading(false);
       });
     }).catch(() => setLoading(false));

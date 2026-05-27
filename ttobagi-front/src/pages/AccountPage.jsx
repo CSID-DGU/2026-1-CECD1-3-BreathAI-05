@@ -24,7 +24,11 @@ export default function AccountPage({ user, onLogout }) {
     }
     setLoading(true);
     const token = localStorage.getItem("token");
-    const res = await authApi.updateMe({ currentPassword: pw.current, newPassword: pw.next }, token);
+    const res = await authApi.updateMe({ 
+      email: user.email,
+      currentPassword: pw.current, 
+      newPassword: pw.next 
+    }, token);
     setLoading(false);
     if (res.success) {
       setPwMsg("ok:비밀번호가 변경되었습니다.");
@@ -107,7 +111,7 @@ export default function AccountPage({ user, onLogout }) {
             <div style={S.cardBody}>
               {[
                 { label: "현재 비밀번호", key: "current", ph: "현재 비밀번호 입력" },
-                { label: "새 비밀번호",  key: "next",    ph: "8자 이상, 영문+숫자+특수문자" },
+                { label: "새 비밀번호", key: "next", ph: "6~20자, 소문자+숫자+특수문자(@$!%*?&)" },
                 { label: "새 비밀번호 확인", key: "confirm", ph: "새 비밀번호 재입력" },
               ].map((f) => (
                 <div key={f.key} style={{ marginBottom: 14 }}>
