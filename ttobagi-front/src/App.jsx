@@ -2,6 +2,7 @@ import { useState } from "react";
 import LoginPage      from "./pages/LoginPage.jsx";
 import SignupPage     from "./pages/SignupPage.jsx";
 import ResetPage      from "./pages/ResetPage.jsx";
+import AdminPromotePage from "./pages/AdminPromotePage.jsx";
 import DashboardPage  from "./pages/DashboardPage.jsx";
 import Sidebar        from "./components/Sidebar.jsx";
 import ChatTestModal  from "./components/ChatTestModal.jsx";
@@ -35,6 +36,7 @@ export default function App() {
       {authPage === "login"  && <LoginPage  onLogin={setUser} setPage={setAuthPage} />}
       {authPage === "signup" && <SignupPage setPage={setAuthPage} />}
       {authPage === "reset"  && <ResetPage  setPage={setAuthPage} />}
+      {authPage === "promote" && <AdminPromotePage setPage={setAuthPage} />}
     </>
   );
 }

@@ -43,6 +43,10 @@ export const authApi = {
   // POST /api/v1/auth/reissue
   reissue: (refreshToken) =>
     fetchApi("POST", "/api/v1/auth/reissue", { refreshToken }),
+
+  // PATCH /api/v1/auth/promote
+  promote: (email, adminCode) =>
+    fetchApi("PATCH", "/api/v1/auth/promote", { email, adminCode }),
 };
 
 // ── 대시보드 ──────────────────────────────────────────────

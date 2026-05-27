@@ -123,6 +123,12 @@ export default function LoginPage({ onLogin, setPage }) {
             <span style={{ color: "#6B7280", marginRight: 4 }}>계정이 없으신가요?</span>
             <span style={S.link} onClick={() => setPage("signup")}>회원가입</span>
           </div>
+
+          {/* 관리자 권한 부여 */}
+          <div style={{ textAlign: "center", fontSize: 12, marginTop: 8 }}>
+            <span style={{ color: "#9CA3AF", marginRight: 4 }}>관리자 권한이 필요하신가요?</span>
+            <span style={S.link} onClick={() => setPage("promote")}>권한 부여</span>
+          </div>
         </div>
       </div>
     </div>
