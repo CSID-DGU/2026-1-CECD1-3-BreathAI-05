@@ -25,7 +25,15 @@ export default function ResetPage({ setPage }) {
 
           {sent && <p style={{ fontSize: 12, color: "#16A34A", marginTop: 8 }}>✅ 이메일을 발송했습니다. 메일함을 확인해주세요.</p>}
 
-          <button style={{ ...S.btn, marginTop: 20 }} onClick={async () => { await authApi.resetPassword(email); setSent(true); }}>
+          <button style={{ ...S.btn, marginTop: 20 }} onClick={async () => {
+            if (!email) return;
+            try {
+              await authApi.resetPassword(email);
+              setSent(true);
+            } catch {
+              alert("이메일 발송에 실패했습니다.");
+            }
+          }}>
             재설정 링크 발송
           </button>
 

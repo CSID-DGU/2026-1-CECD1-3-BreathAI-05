@@ -1,4 +1,4 @@
-export default function Sidebar({ currentPage, setPage, onChatOpen }) {
+export default function Sidebar({ currentPage, setPage }) {
   const NAV = [
     { key: "dashboard", icon: "📊", label: "대시보드" },
     { key: "analyze",   icon: "🔍", label: "신규 데이터 분석" },
@@ -8,7 +8,6 @@ export default function Sidebar({ currentPage, setPage, onChatOpen }) {
 
   return (
     <div style={S.sidebar}>
-      {/* 로고 */}
       <div style={S.logo}>
         <span style={{ fontSize: 24 }}>🚇</span>
         <div>
@@ -17,7 +16,6 @@ export default function Sidebar({ currentPage, setPage, onChatOpen }) {
         </div>
       </div>
 
-      {/* 메뉴 */}
       <nav style={{ flex: 1 }}>
         <div style={S.section}>메뉴</div>
         {NAV.map((n) => (
@@ -29,17 +27,6 @@ export default function Sidebar({ currentPage, setPage, onChatOpen }) {
           </div>
         ))}
       </nav>
-
-      {/* 챗봇 테스트 버튼 */}
-      <div style={S.chatBtn} onClick={onChatOpen}>
-        <div style={S.chatBtnInner}>
-          <span style={{ fontSize: 28 }}>🤖</span>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>챗봇 테스트</div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,.6)" }}>또타24 응답 확인</div>
-          </div>
-        </div>
-      </div>
 
       <div style={S.footer}>BreathAI · v1.0</div>
     </div>
@@ -54,7 +41,5 @@ const S = {
   section:     { fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,.4)", letterSpacing: ".08em", textTransform: "uppercase", padding: "16px 20px 6px" },
   navItem:     { display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", fontSize: 13, color: "rgba(255,255,255,.7)", cursor: "pointer", borderLeft: "3px solid transparent", transition: "all .15s" },
   navActive:   { background: "rgba(255,255,255,.1)", color: "#fff", borderLeftColor: "#64B5F6" },
-  chatBtn:     { margin: "12px", borderRadius: 12, background: "linear-gradient(135deg, #1565C0, #1976D2)", cursor: "pointer", padding: 14, transition: "opacity .15s" },
-  chatBtnInner:{ display: "flex", alignItems: "center", gap: 10 },
   footer:      { padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,.1)", fontSize: 11, color: "rgba(255,255,255,.3)" },
 };
