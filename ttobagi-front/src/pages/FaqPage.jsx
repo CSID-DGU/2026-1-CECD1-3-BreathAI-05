@@ -159,7 +159,7 @@ export default function FaqPage() {
             candidates.map((c) => (
               <div key={c.candidateId} style={{
                 ...S.candCard,
-                borderLeft: `4px solid ${c.reviewStatus === "ACCEPTED" ? "#43A047" : c.reviewStatus === "REJECTED" ? "#E53935" : "#1565C0"}`,
+                borderLeft: `4px solid ${(c.reviewStatus === "ACCEPTED" || c.reviewStatus === "APPLIED") ? "#43A047" : c.reviewStatus === "REJECTED" ? "#E53935" : "#1565C0"}`,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div style={{ flex: 1 }}>
@@ -185,10 +185,10 @@ export default function FaqPage() {
                   ) : (
                     <span style={{
                       fontSize: 12, fontWeight: 500, padding: "4px 14px", borderRadius: 20, marginLeft: 12,
-                      background: c.reviewStatus === "ACCEPTED" ? "#D1FAE5" : "#FDECEA",
-                      color: c.reviewStatus === "ACCEPTED" ? "#065F46" : "#B91C1C",
+                      background: (c.reviewStatus === "ACCEPTED" || c.reviewStatus === "APPLIED") ? "#D1FAE5" : "#FDECEA",
+                      color: (c.reviewStatus === "ACCEPTED" || c.reviewStatus === "APPLIED") ? "#065F46" : "#B91C1C",
                     }}>
-                      {c.reviewStatus === "ACCEPTED" ? "✅ 승인됨" : "❌ 반려됨"}
+                      {(c.reviewStatus === "ACCEPTED" || c.reviewStatus === "APPLIED") ? "✅ 승인됨" : "❌ 반려됨"}
                     </span>
                   )}
                 </div>
