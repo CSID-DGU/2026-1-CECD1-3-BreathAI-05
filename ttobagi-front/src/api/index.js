@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = "https://unsafe-unicorn-smoking.ngrok-free.dev";
 
 const fetchApi = async (method, path, body = null, token = null, isFormData = false) => {
   const headers = {};
